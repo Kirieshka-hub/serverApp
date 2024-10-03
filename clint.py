@@ -1,34 +1,44 @@
 import socket
+import uuid
 import threading
-import sys
 
 
-def receive_messages(client_socket):
+HOST = '192.168.136.7'
+PORT = 65432
+
+
+def receive_messages(sock):
     while True:
         try:
-            message = client_socket.recv(1024)
-            if not message:
+            message = sock.recv(1024).decode('utf-8')
+            if message:
+                print(message)
+            else:
                 break
-            print(f"~ {message.decode('utf-8')}")
         except:
-            print("Ошибка при получении сообщения.")
             break
 
-def send_messages(client_socket):
-    while True:
-        message = input()
-        client_socket.send(message.encode('utf-8'))
 
-def run_client():
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.connect((socket.gethostbyname(socket.gethostname()), 1026))
-    print("~Подключенно~")
+def start_client():
+    client_id = str(uuid.uuid4())
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
+        client_socket.connect((HOST, PORT))
 
-    thread_receive = threading.Thread(target=receive_messages, args=(client_socket,))
-    thread_receive.start()
 
-    thread_send = threading.Thread(target=send_messages, args=(client_socket,))
-    thread_send.start()
+        threading.Thread(target=receive_messages, args=(client_socket,), daemon=True).start()
+
+        print(f'Ваш ID: {client_id}')
+
+        while True:
+            try:
+                message = input()
+                if message.lower() == 'exit':
+                    print(f"[{client_id}] disconnect")
+                    break
+                full_message = f'[{client_id}] {message}'
+                client_socket.send(full_message.encode('utf-8'))
+            except:
+                pass
 
 if __name__ == "__main__":
-    run_client()
+    start_client()

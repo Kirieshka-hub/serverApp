@@ -1,51 +1,74 @@
 import socket
 import threading
-import sys
+import time
 
 
+HOST = '192.168.136.7'
+PORT = 65432
 clients = []
+client_last_activity = {}
+client_message_count = {}
+MAX_CLIENTS = 100
+MESSAGE_LIMIT = 5
+LIMIT_INTERVAL = 10
+TIMEOUT = 60
 
-def handle_client(client_socket, address):
-    print(f"Подключен: {address}")
-    clients.append(client_socket)
 
+def handle_client(conn, addr):
+    print(f'**Подключен {addr}**')
+    clients.append(conn)
+    client_last_activity[conn] = time.time()
+    client_message_count[conn] = []
 
-def disconn(client_socket, address):
-    client_socket.close()
-    clients.remove(client_socket)
-    print(f"Отключен: {address}")
+    try:
+        while True:
 
-def receive_messages(client_socket, address):
-    while True:
-        try:
-            message = client_socket.recv(1024)
-            if not message:
+            if time.time() - client_last_activity[conn] > TIMEOUT:
+                print(f'**Клиент {addr} отключен из-за бездействия.**')
                 break
-            print(f"~ {message.decode('utf-8')}")
-        except:
-            disconn(client_socket, address)
-            break
 
-def send_messages(client_socket):
-    while True:
-        message = input()
-        client_socket.send(message.encode('utf-8'))
+            message = conn.recv(1024).decode('utf-8')
+            if message:
+                client_last_activity[conn] = time.time()
 
-def run_server():
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind((socket.gethostbyname(socket.gethostname()), 1026))
-    server_socket.listen(5)
-    print("Сервер запущен и ожидает подключения...")
+                current_time = time.time()
+                client_message_count[conn] = [timestamp for timestamp in client_message_count[conn] if
+                                              current_time - timestamp < LIMIT_INTERVAL]
+                if len(client_message_count[conn]) >= MESSAGE_LIMIT:
+                    print(f'**Клиент {addr} отключен из-за спама.**')
+                    break
+                client_message_count[conn].append(current_time)
 
-    while True:
-        client_socket, address = server_socket.accept()
-        thread_receive = threading.Thread(target=receive_messages, args=(client_socket,address))
-        thread_receive.start()
+                for client in clients:
+                    if client != conn:
+                        client.send(message.encode('utf-8'))
+            else:
+                break
+    except ConnectionResetError:
+        pass
+    finally:
+        conn.close()
+        clients.remove(conn)
+        del client_last_activity[conn]
+        del client_message_count[conn]
+        print(f'**Отключен {addr}**')
 
-        thread_send = threading.Thread(target=send_messages, args=(client_socket,))
-        thread_send.start()
 
-        thread_send = threading.Thread(target=handle_client, args=(client_socket,address))
-        thread_send.start()
+def start_server():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
+        server_socket.bind((HOST, PORT))
+        server_socket.listen()
+        print('**Сервер запущен, ожидает клиентов...**')
+
+        while True:
+            if len(clients) >= MAX_CLIENTS:
+                print('**Достигнут максимальный лимит подключенных клиентов. Ожидание освобождения.**')
+                time.sleep(5)
+                continue
+
+            conn, addr = server_socket.accept()
+            threading.Thread(target=handle_client, args=(conn, addr)).start()
+
+
 if __name__ == "__main__":
-    run_server()
+    start_server()
