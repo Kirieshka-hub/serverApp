@@ -12,7 +12,7 @@ class SeaBattle(QMainWindow):
         self.setGeometry(500, 500, 800, 600)
         self.grid_size = 10  # Размер сетки
         self.ships_positions = []  # Список для хранения позиций кораблей
-
+        #
         self.stacked_widget = QStackedWidget(self)
         self.setCentralWidget(self.stacked_widget)
 
