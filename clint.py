@@ -1,44 +1,46 @@
+import sys
 import socket
-import uuid
 import threading
+from PyQt5 import QtWidgets, QtGui
 
 
-HOST = '192.168.136.7'
-PORT = 65432
+class TicTacToeClient(QtWidgets.QWidget):
+    def __init__(self):
+        super().__init__()
+        self.init_ui()
+        self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.client_socket.connect(('192.168.194.7', 65434))
 
+        threading.Thread(target=self.receive_board).start()
 
-def receive_messages(sock):
-    while True:
-        try:
-            message = sock.recv(1024).decode('utf-8')
-            if message:
-                print(message)
-            else:
-                break
-        except:
-            break
+    def init_ui(self):
+        self.setWindowTitle('Крестики-нолики')
+        self.grid_layout = QtWidgets.QGridLayout()
 
+        self.buttons = [QtWidgets.QPushButton(' ') for _ in range(9)]
 
-def start_client():
-    client_id = str(uuid.uuid4())
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
-        client_socket.connect((HOST, PORT))
+        for i in range(3):
+            for j in range(3):
+                button = self.buttons[i * 3 + j]
+                button.setFont(QtGui.QFont('Arial', 24))
+                button.clicked.connect(lambda _, x=i * 3 + j: self.make_move(x))
+                self.grid_layout.addWidget(button, i, j)
 
+        self.setLayout(self.grid_layout)
 
-        threading.Thread(target=receive_messages, args=(client_socket,), daemon=True).start()
+    def make_move(self, index):
+        if self.buttons[index].text() == ' ':
+            self.client_socket.send(str(index).encode())
 
-        print(f'Ваш ID: {client_id}')
-
+    def receive_board(self):
         while True:
-            try:
-                message = input()
-                if message.lower() == 'exit':
-                    print(f"[{client_id}] disconnect")
-                    break
-                full_message = f'[{client_id}] {message}'
-                client_socket.send(full_message.encode('utf-8'))
-            except:
-                pass
+            board_state = self.client_socket.recv(1024).decode().split(',')
+            for i in range(9):
+                self.buttons[i].setText(board_state[i])
+
 
 if __name__ == "__main__":
-    start_client()
+    app = QtWidgets.QApplication(sys.argv)
+    client = TicTacToeClient()
+    client.show()
+    sys.exit(app.exec_())

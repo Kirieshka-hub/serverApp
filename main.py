@@ -1,74 +1,42 @@
 import socket
 import threading
-import time
 
+class TicTacToeServer:
+    def __init__(self):
+        self.board = [' '] * 9
+        self.current_player = 'X'
+        self.clients = []
 
-HOST = '192.168.136.7'
-PORT = 65432
-clients = []
-client_last_activity = {}
-client_message_count = {}
-MAX_CLIENTS = 100
-MESSAGE_LIMIT = 5
-LIMIT_INTERVAL = 10
-TIMEOUT = 60
+    def start_server(self):
+        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server_socket.bind(('192.168.194.7', 65434))
+        server_socket.listen(2)
+        print("Сервер запущен, ожидаем подключения...")
 
+        while len(self.clients) < 2:
+            client_socket, addr = server_socket.accept()
+            print(f"Подключен {addr}")
+            self.clients.append(client_socket)
+            threading.Thread(target=self.handle_client, args=(client_socket,)).start()
 
-def handle_client(conn, addr):
-    print(f'**Подключен {addr}**')
-    clients.append(conn)
-    client_last_activity[conn] = time.time()
-    client_message_count[conn] = []
-
-    try:
+    def handle_client(self, client_socket):
         while True:
+            move = client_socket.recv(1024).decode()
+            if move:
+                self.make_move(move)
+                self.broadcast_board()
 
-            if time.time() - client_last_activity[conn] > TIMEOUT:
-                print(f'**Клиент {addr} отключен из-за бездействия.**')
-                break
+    def make_move(self, move):
+        index = int(move)
+        if self.board[index] == ' ':
+            self.board[index] = self.current_player
+            self.current_player = 'O' if self.current_player == 'X' else 'X'
 
-            message = conn.recv(1024).decode('utf-8')
-            if message:
-                client_last_activity[conn] = time.time()
-
-                current_time = time.time()
-                client_message_count[conn] = [timestamp for timestamp in client_message_count[conn] if
-                                              current_time - timestamp < LIMIT_INTERVAL]
-                if len(client_message_count[conn]) >= MESSAGE_LIMIT:
-                    print(f'**Клиент {addr} отключен из-за спама.**')
-                    break
-                client_message_count[conn].append(current_time)
-
-                for client in clients:
-                    if client != conn:
-                        client.send(message.encode('utf-8'))
-            else:
-                break
-    except ConnectionResetError:
-        pass
-    finally:
-        conn.close()
-        clients.remove(conn)
-        del client_last_activity[conn]
-        del client_message_count[conn]
-        print(f'**Отключен {addr}**')
-
-
-def start_server():
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
-        server_socket.bind((HOST, PORT))
-        server_socket.listen()
-        print('**Сервер запущен, ожидает клиентов...**')
-
-        while True:
-            if len(clients) >= MAX_CLIENTS:
-                print('**Достигнут максимальный лимит подключенных клиентов. Ожидание освобождения.**')
-                time.sleep(5)
-                continue
-
-            conn, addr = server_socket.accept()
-            threading.Thread(target=handle_client, args=(conn, addr)).start()
-
+    def broadcast_board(self):
+        board_state = ','.join(self.board)
+        for client in self.clients:
+            client.send(board_state.encode())
 
 if __name__ == "__main__":
-    start_server()
+    server = TicTacToeServer()
+    server.start_server()
