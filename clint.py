@@ -70,27 +70,27 @@ class MainWindow(QMainWindow):
 
         print('Looking for the server...')
 
-        while True:
-            data, addr = udp_sock.recvfrom(1024)
-            message = data.decode('utf-8')
-            if message.startswith('SERVER_IP:'):
-                server_ip = message.split(':')[1]
-                print(f'Server IP found: {server_ip}')
 
-                try:
-                    self.client_sock.connect((server_ip, 53210))
-                    print('Connected to server')
+        data, addr = udp_sock.recvfrom(1024)
+        message = data.decode('utf-8')
+        if message.startswith('SERVER_IP:'):
+            server_ip = message.split(':')[1]
+            print(f'Server IP found: {server_ip}')
 
-                    self.awaiting_window.close()
+            try:
+                self.client_sock.connect((server_ip, 53210))
+                print('Connected to server')
 
-                    for button in self.buttons:
-                        button.setEnabled(True)
+                self.awaiting_window.close()
 
-                    threading.Thread(target=self.receive_moves, daemon=True).start()
-                    break
+                for button in self.buttons:
+                    button.setEnabled(True)
 
-                except Exception as e:
-                    print(f"Failed to connect: {e}")
+                threading.Thread(target=self.receive_moves, daemon=True).start()
+
+
+            except Exception as e:
+                print(f"Failed to connect: {e}")
 
     def receive_moves(self):
         while True:

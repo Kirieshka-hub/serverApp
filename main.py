@@ -3,6 +3,7 @@ import threading
 from PyQt5.QtWidgets import QMainWindow, QApplication, QPushButton, QWidget, QLabel, QVBoxLayout, QGridLayout
 from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt
+from PyQt5 import QtCore
 import sys
 
 
@@ -10,7 +11,8 @@ class AwaitingWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle('Tic Tac Toe - Ожидание подключения')
-        self.setGeometry(100, 100, 300, 100)
+        self.setWindowFlag(QtCore.Qt.WindowStaysOnTopHint)
+        self.setGeometry(150, 150, 300, 100)
         self.label = QLabel("Ожидание подключения клиента...", self)
         self.label.setGeometry(50, 20, 200, 50)
 
