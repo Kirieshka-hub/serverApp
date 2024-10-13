@@ -17,7 +17,7 @@ class AwaitingWindow(QWidget):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, awaiting_window):
         super().__init__()
         self.setWindowTitle('Messenger')
         self.setGeometry(600, 600, 800, 600)
@@ -36,12 +36,10 @@ class MainWindow(QMainWindow):
         # Настройка широковещательной рассылки
         self.broadcast_event = threading.Event()
 
-        # Настройка окна ожидания
-        self.awaiting_window = AwaitingWindow()
-        self.awaiting_window.show()
+        self.awaiting_window = awaiting_window
 
         # Запускаем поток для ожидания подключения
-        threading.Thread(target=self.start_server, daemon=True).start()
+        # threading.Thread(target=self.start_server, daemon=True).start()
 
     def start_server(self):
         print('Сервер запущен, ожидание подключения клиента...')
@@ -59,14 +57,14 @@ class MainWindow(QMainWindow):
         self.broadcast_event.set()
 
         # Закрываем окно ожидания и показываем главное окно чата
-        threading.Thread(target=self.close_awaiting_window).start()
+        self.awaiting_window.close()
 
         threading.Thread(target=self.handle_client, daemon=True).start()
 
         self.ui.send_button.clicked.connect(self.send_message)
 
-    def close_awaiting_window(self):
-        threading.Thread(target=self.awaiting_window.close).start()
+    # def close_awaiting_window(self):
+    #     threading.Thread(target=self.awaiting_window.close).start()
 
     def broadcast_ip(self):
         broadcast_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -105,6 +103,12 @@ class MainWindow(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    window = MainWindow()
+
+    awaiting_window = AwaitingWindow()
+    awaiting_window.show()
+
+    window = MainWindow(awaiting_window)
+    window.start_server()
     window.show()
+
     sys.exit(app.exec_())
