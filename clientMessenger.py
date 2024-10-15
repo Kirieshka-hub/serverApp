@@ -1,14 +1,9 @@
 import socket
 import threading
-from PyQt5.QtWidgets import QMainWindow, QApplication, QPushButton, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QLineEdit,QTextEdit
-from PyQt5.QtGui import QFont
-from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QMainWindow, QApplication, QWidget, QLabel
 from PyQt5 import QtCore
 import sys
-from  registerUI import Ui_MainWindow
-from chatUI import Ui_MainWindowChat
-
-
+from initUI import Ui_MainWindow
 
 
 class AwaitingWindow(QWidget):
@@ -24,17 +19,16 @@ class AwaitingWindow(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self, awaiting_window):
         super().__init__()
-
-        # self.ui = MainApp()
-        # self.setCentralWidget(self.ui)
-
-        # self.ui.input_field.setReadOnly(True)
+        self.ui = Ui_MainWindow()
+        self.ui.setupUi(self)
 
         self.client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        # Reference to awaiting window
+        # Ссылка на ожидающее окно
         self.awaiting_window = awaiting_window
 
+        # Подключаем кнопку отправки сообщения
+        self.ui.pushButton_5.clicked.connect(self.send_message)
 
     def connect_to_server(self):
         udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -43,54 +37,60 @@ class MainWindow(QMainWindow):
 
         print('Looking for the server...')
 
-
         data, addr = udp_sock.recvfrom(1024)
         message = data.decode('utf-8')
         if message.startswith('SERVER_IP:'):
             server_ip = message.split(':')[1]
             print(f'Server IP found: {server_ip}')
 
+
+
+            # self.client_sock.sendall(msg.encode('utf-8'))
+
             try:
                 self.client_sock.connect((server_ip, 53210))
                 print('Connected to server')
-                # self.ui.input_field.setReadOnly(False)
 
                 self.awaiting_window.close()
+                self.show()
 
                 threading.Thread(target=self.receive_moves, daemon=True).start()
 
-                # self.ui.send_button.clicked.connect(self.send_message)
-
-
             except Exception as e:
                 print(f"Failed to connect: {e}")
-
 
     def receive_moves(self):
         while True:
             try:
                 message = self.client_sock.recv(1024).decode('utf-8')
                 if message:
-                    pass
-                    # Отображаем сообщение в текстовом поле чата
-                    # self.ui.text_area.append(f'Сервер: {message}')
+                    count = 0
+                    # Проверяем, является ли полученное сообщение списком клиентов
+                    if message.startswith("Подключенные клиенты:"):
+                        # Очищаем QListWidget перед добавлением новых клиентов
+                        self.ui.listWidget.clear()
+                        # Извлекаем информацию об адресах и добавляем их в QListWidget
+                        clients_info = message.split(":")[1].strip()
+                        clients = clients_info.split(",")
+                        self.ui.listWidget.addItem(clients[count] + clients[count+1])
+                        count += 2
+
+                    else:
+                        self.ui.textEdit.append(f'Сервер: {message}')  # Добавляем сообщение от сервера в текстовое поле
             except Exception as e:
                 print(f"Ошибка при получении сообщения: {e}")
                 break
 
-    # def send_message(self):
-    #     message = self.ui.input_field.text()
-    #     if message:
-    #         try:
-    #             # Отправляем сообщение на сервер
-    #             self.client_sock.sendall(message.encode('utf-8'))
-    #             # print(f'Отправлено сообщение: {message}')
-    #             # Отображаем сообщение в текстовом поле чата
-    #             # self.ui.text_area.append(f'Вы: {message}')
-    #             self.ui.input_field.clear()  # Очищаем поле ввода
-    #
-    #         except Exception as e:
-    #             print(f"Ошибка при отправке сообщения: {e}")
+    def send_message(self):
+        message = self.ui.lineEdit_6.text()
+        if message:
+            try:
+                self.client_sock.sendall(message.encode('utf-8'))
+                self.ui.textEdit.append(f"Вы: {message}")
+                self.ui.lineEdit_6.clear()
+            except Exception as e:
+                print(f"Ошибка при отправке сообщения: {e}")
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
@@ -101,9 +101,4 @@ if __name__ == "__main__":
     client_window = MainWindow(awaiting_window)
     client_window.connect_to_server()
 
-    MainWindow = QMainWindow()
-    ui = Ui_MainWindow()
-    ui.setupUi(MainWindow)
-    MainWindow.show()
-
-sys.exit(app.exec_())
+    sys.exit(app.exec_())
