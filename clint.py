@@ -70,9 +70,9 @@ class MainWindow(QMainWindow):
 
         print('Looking for the server...')
 
-
         data, addr = udp_sock.recvfrom(1024)
         message = data.decode('utf-8')
+
         if message.startswith('SERVER_IP:'):
             server_ip = message.split(':')[1]
             print(f'Server IP found: {server_ip}')
@@ -87,7 +87,6 @@ class MainWindow(QMainWindow):
                     button.setEnabled(True)
 
                 threading.Thread(target=self.receive_moves, daemon=True).start()
-
 
             except Exception as e:
                 print(f"Failed to connect: {e}")
@@ -114,9 +113,7 @@ class MainWindow(QMainWindow):
                         self.on_buttons()
 
             except ValueError:
-                if move_str == "Ничья!":
-                    self.title_label.setText(move_str)
-                    self.disable_buttons()
+                pass
 
     def disable_buttons(self):
         for button in self.buttons:
@@ -159,6 +156,10 @@ class MainWindow(QMainWindow):
                 self.title_label.setText(message)
                 self.disable_buttons()
 
+                # Автоматически перезапускаем игру после выигрыша
+                threading.Event().wait(2)
+                self.restart_game()
+
                 return True
 
             elif all(self.board[i] == 'O' for i in combo):
@@ -166,18 +167,31 @@ class MainWindow(QMainWindow):
                 self.title_label.setText(message)
                 self.disable_buttons()
 
+                # Автоматически перезапускаем игру после выигрыша
+                threading.Event().wait(2)
+                self.restart_game()
+
                 return True
 
         if all(cell != ' ' for cell in self.board):
             message = "Ничья!"
             self.title_label.setText(message)
             self.disable_buttons()
-
+            threading.Event().wait(2)
+            self.restart_game()
+            return True
 
         return False
 
+    def restart_game(self):
+        for i in range(len(self.board)):
+            self.board[i] = ' '
+            button = self.buttons[i]
+            button.setText(' ')
 
-
+        # Обновляем заголовок и включаем кнопки
+        self.title_label.setText("Tic Tac Toe")
+        self.on_buttons()
 
 
 if __name__ == "__main__":

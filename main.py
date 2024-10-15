@@ -18,7 +18,7 @@ class AwaitingWindow(QWidget):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, awaiting_window):
         super().__init__()
         self.setWindowTitle('Tic Tac Toe - Игра')
         self.setGeometry(100, 100, 400, 400)
@@ -36,12 +36,7 @@ class MainWindow(QMainWindow):
         # Broadcast setup
         self.broadcast_event = threading.Event()
 
-        # Awaiting window setup
-        self.awaiting_window = AwaitingWindow()
-        self.awaiting_window.show()
-
-        # Start thread for waiting for connection
-        threading.Thread(target=self.start_server, daemon=True).start()
+        self.awaiting_window = awaiting_window
 
     def init_ui(self):
         layout = QVBoxLayout()
@@ -49,22 +44,22 @@ class MainWindow(QMainWindow):
         # Add a label above the buttons
         self.title_label = QLabel("Tic Tac Toe", self)
         self.title_label.setFont(QFont('Arial', 24))
-        self.title_label.setAlignment(Qt.AlignCenter)  # Center align the title
+        self.title_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.title_label)
 
-        grid_layout = QGridLayout()  # Use a grid layout for buttons
+        grid_layout = QGridLayout()
 
         for i in range(3):
             for j in range(3):
                 button = self.buttons[i * 3 + j]
                 button.setFont(QFont('Arial', 24))
-                button.setFixedSize(120, 120)  # Set fixed size for symmetry
+                button.setFixedSize(120, 120)
                 button.clicked.connect(self.button_clicked)
-                button.setEnabled(False)  # Disable buttons until connected
+                button.setEnabled(False)
                 button.setStyleSheet("background-color: lightgray;")
                 grid_layout.addWidget(button, i, j)
 
-        layout.addLayout(grid_layout)  # Add grid layout to main layout
+        layout.addLayout(grid_layout)
 
         central_widget = QWidget()
         central_widget.setLayout(layout)
@@ -73,27 +68,23 @@ class MainWindow(QMainWindow):
     def start_server(self):
         print('Сервер запущен, ожидание подключения клиента...')
 
-        # Start broadcasting thread
         threading.Thread(target=self.broadcast_ip, daemon=True).start()
 
         # Wait for client connection
         self.client_sock, client_addr = self.server_sock.accept()
+
         print(f'Клиент подключен от {client_addr}')
+
+        self.awaiting_window.close()
 
         # Stop broadcasting after connection
         self.broadcast_event.set()
-
-        # Close awaiting window and show main game window
-        threading.Thread(target=self.close_awaiting_window).start()
 
         # Enable buttons after client connection
         self.on_buttons()
 
         # Start handling messages from client
         threading.Thread(target=self.handle_client, daemon=True).start()
-
-    def close_awaiting_window(self):
-        threading.Thread(target=self.awaiting_window.close).start()
 
     def broadcast_ip(self):
         broadcast_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -108,31 +99,28 @@ class MainWindow(QMainWindow):
             threading.Event().wait(2)
 
     def handle_client(self):
-         while True:
-                 move_str = self.client_sock.recv(1024).decode()
+        while True:
+            move_str = self.client_sock.recv(1024).decode()
 
-                 if move_str.startswith("Игрок"):
-                     self.title_label.setText(move_str)
-                     self.disable_buttons()
-                     continue
+            if move_str.startswith("Игрок"):
+                self.title_label.setText(move_str)
+                self.disable_buttons()
+                continue
 
-                 try:
-                     index = int(move_str)
+            try:
+                index = int(move_str)
 
-                     if index >= 0 and index < len(self.board) and self.board[index] == ' ':
-                         button = self.buttons[index]
-                         button.setText('O')
-                         self.board[index] = 'O'
+                if index >= 0 and index < len(self.board) and self.board[index] == ' ':
+                    button = self.buttons[index]
+                    button.setText('O')
+                    self.board[index] = 'O'
 
-                         # Проверяем на победителя после хода сервера
-                         if not self.check_winner():
-                             self.on_buttons()
+                    # Проверяем на победителя после хода сервера
+                    if not self.check_winner():
+                        self.on_buttons()
 
-                 except ValueError:
-                     if move_str == "Ничья!":
-                         self.title_label.setText(move_str)
-                         self.disable_buttons()
-
+            except ValueError:
+                pass
 
     def check_winner(self):
         winning_combinations = [
@@ -146,58 +134,77 @@ class MainWindow(QMainWindow):
                 message = "Игрок X выиграл!"
                 self.title_label.setText(message)
                 self.disable_buttons()
-
+                # Автоматически перезапускаем игру после выигрыша
+                threading.Event().wait(2)
+                self.restart_game()
                 return True
 
             elif all(self.board[i] == 'O' for i in combo):
                 message = "Игрок O выиграл!"
                 self.title_label.setText(message)
                 self.disable_buttons()
-
+                # Автоматически перезапускаем игру после выигрыша
+                threading.Event().wait(2)
+                self.restart_game()
                 return True
 
         if all(cell != ' ' for cell in self.board):
             message = "Ничья!"
             self.title_label.setText(message)
             self.disable_buttons()
-
+            threading.Event().wait(2)  # Задержка перед перезапуском для удобства восприятия
+            self.restart_game()
+            return True
 
         return False
 
-
-
     def disable_buttons(self):
-         for button in self.buttons:
-             button.setEnabled(False)
+        for button in self.buttons:
+            button.setEnabled(False)
 
     def on_buttons(self):
-         for button in self.buttons:
-             button.setEnabled(True)
+        for button in self.buttons:
+            button.setEnabled(True)
 
     def button_clicked(self):
-         button = self.sender()
-         index = self.buttons.index(button)
+        button = self.sender()
+        index = self.buttons.index(button)
 
-         if self.board[index] == ' ':
-             button.setText('X')
-             move_str = str(index)
-             try:
-                 # Обновляем локальное состояние доски.
-                 self.board[index] = 'X'
+        if self.board[index] == ' ':
+            button.setText('X')
+            move_str = str(index)
+            try:
+                # Обновляем локальное состояние доски.
+                self.board[index] = 'X'
 
-                 # Отправляем ход на сервер.
-                 self.client_sock.send(move_str.encode())
+                # Отправляем ход на сервер.
+                self.client_sock.send(move_str.encode())
 
-                 # Проверяем на победителя после своего хода
-                 if not self.check_winner():
-                     self.disable_buttons()  # Отключаем кнопки после хода
-             except Exception as e:
-                 print(f"Failed to send move: {e}")
+                # Проверяем на победителя после своего хода
+                if not self.check_winner():
+                    self.disable_buttons()
+            except Exception as e:
+                print(f"Failed to send move: {e}")
 
+    def restart_game(self):
+        for i in range(len(self.board)):
+            self.board[i] = ' '
+            button = self.buttons[i]
+            button.setText(' ')
+
+        # Обновляем заголовок и включаем кнопки
+        self.title_label.setText("Tic Tac Toe")
+        self.on_buttons()
 
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    window = MainWindow()
+
+    awaiting_window = AwaitingWindow()
+    awaiting_window.show()
+
+    window = MainWindow(awaiting_window)
+    window.start_server()
     window.show()
+
     sys.exit(app.exec_())
