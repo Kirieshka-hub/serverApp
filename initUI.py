@@ -338,8 +338,8 @@ class Ui_MainWindow(object):
 
         self.pushButton_2.clicked.connect(self.go_to_second_page)
         self.pushButton_4.clicked.connect(self.go_to_first_page)
-        self.pushButton.clicked.connect(self.go_to_third_page)
-        self.pushButton_3.clicked.connect(self.go_to_third_page)
+        # self.pushButton.clicked.connect(self.go_to_third_page)
+        # self.pushButton_3.clicked.connect(self.go_to_third_page)
         self.pushButton_7.clicked.connect(self.go_to_third_page)
 
         # self.listWidget.addItem("first")
@@ -372,9 +372,14 @@ class Ui_MainWindow(object):
 
     def go_to_second_page(self):
         self.stackedWidget.setCurrentIndex(1)
+        self.lineEdit.clear()
+        self.lineEdit_2.clear()
 
     def go_to_first_page(self):
         self.stackedWidget.setCurrentIndex(0)
+        self.lineEdit_3.clear()
+        self.lineEdit_4.clear()
+        self.lineEdit_5.clear()
 
     def go_to_third_page(self):
         self.stackedWidget.setCurrentIndex(2)

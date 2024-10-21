@@ -1,8 +1,9 @@
 import socket
 import threading
 from PyQt5.QtWidgets import QMainWindow, QApplication, QWidget, QLabel
-from PyQt5 import QtCore
+from PyQt5 import QtCore, QtWidgets
 import sys
+import sqlite3
 from initUI import Ui_MainWindow
 
 
@@ -21,6 +22,9 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
+
+        self.ui.pushButton.clicked.connect(self.login)
+        self.ui.pushButton_3.clicked.connect(self.register)
 
         self.client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -42,8 +46,6 @@ class MainWindow(QMainWindow):
         if message.startswith('SERVER_IP:'):
             server_ip = message.split(':')[1]
             print(f'Server IP found: {server_ip}')
-
-
 
             # self.client_sock.sendall(msg.encode('utf-8'))
 
@@ -91,6 +93,59 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 print(f"Ошибка при отправке сообщения: {e}")
 
+    def login(self):
+        username = self.ui.lineEdit.text()  # Поле логина
+        password = self.ui.lineEdit_2.text()  # Поле пароля
+
+        try:
+            connection = sqlite3.connect('users.db')
+            cursor = connection.cursor()
+
+            cursor.execute('SELECT password FROM users WHERE username = ?', (username,))
+            result = cursor.fetchone()
+
+            if result and result[0] == password:
+                self.ui.go_to_third_page()
+            else:
+                QtWidgets.QMessageBox.warning(self, 'Ошибка', 'Неверный логин или пароль.')
+
+        except sqlite3.Error as e:
+            QtWidgets.QMessageBox.critical(self, 'Ошибка базы данных',
+                                           f'Произошла ошибка при работе с базой данных: {e}')
+
+        finally:
+            if connection:
+                connection.close()
+
+    def register(self):
+        username = self.ui.lineEdit_3.text()  # Поле логина для регистрации
+        password = self.ui.lineEdit_4.text()  # Поле пароля для регистрации
+
+        try:
+            connection = sqlite3.connect('users.db')
+            cursor = connection.cursor()
+
+            if self.ui.lineEdit_4.text() == self.ui.lineEdit_5.text():
+                cursor.execute('INSERT INTO users (username, password) VALUES (?, ?)', (username, password))
+                connection.commit()
+                # QtWidgets.QMessageBox.information(self, 'Успех', 'Вы успешно зарегистрировались!')
+                self.ui.go_to_third_page()
+                self.ui.lineEdit_3.clear()
+                self.ui.lineEdit_4.clear()
+                self.ui.lineEdit_5.clear()
+            else:
+                QtWidgets.QMessageBox.warning(self, 'Ошибка', 'Пароли не совпадают или не написаны')
+
+        except sqlite3.IntegrityError:
+            QtWidgets.QMessageBox.warning(self, 'Ошибка', 'Пользователь с таким именем уже существует.')
+
+        except sqlite3.Error as e:
+            QtWidgets.QMessageBox.critical(self, 'Ошибка базы данных',
+                                           f'Произошла ошибка при работе с базой данных: {e}')
+
+        finally:
+            if connection:
+                connection.close()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

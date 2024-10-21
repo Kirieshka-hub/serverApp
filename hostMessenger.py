@@ -3,7 +3,29 @@ import threading
 from PyQt5.QtWidgets import QApplication, QWidget, QLabel,QMainWindow
 from PyQt5 import QtCore
 import sys
+import sqlite3
 from  initUI import Ui_MainWindow
+
+
+def create_database():
+    try:
+        connection = sqlite3.connect('users.db')
+        cursor = connection.cursor()
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY,
+            username TEXT UNIQUE,
+            password TEXT
+            ip_adress TEXT
+        )
+        ''')
+        connection.commit()
+    except sqlite3.Error as e:
+        print(f'Ошибка при создании базы данных: {e}')
+    finally:
+        if connection:
+            connection.close()
+
 
 
 class AwaitingWindow(QWidget):
@@ -32,9 +54,6 @@ class MainWindow(QMainWindow):
 
         # Запускаем поток для ожидания подключения
         threading.Thread(target=self.start_server, daemon=True).start()
-
-
-
 
     def start_server(self):
         print('Сервер запущен, ожидание подключения клиента...')
@@ -103,6 +122,7 @@ class MainWindow(QMainWindow):
 
 
 if __name__ == "__main__":
+    create_database()
     app = QApplication(sys.argv)
 
     awaiting_window = AwaitingWindow()
