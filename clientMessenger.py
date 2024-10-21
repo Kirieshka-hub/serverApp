@@ -47,8 +47,6 @@ class MainWindow(QMainWindow):
             server_ip = message.split(':')[1]
             print(f'Server IP found: {server_ip}')
 
-            # self.client_sock.sendall(msg.encode('utf-8'))
-
             try:
                 self.client_sock.connect((server_ip, 53210))
                 print('Connected to server')
@@ -66,17 +64,17 @@ class MainWindow(QMainWindow):
             try:
                 message = self.client_sock.recv(1024).decode('utf-8')
                 if message:
-                    count = 0
                     # Проверяем, является ли полученное сообщение списком клиентов
                     if message.startswith("Подключенные клиенты:"):
                         # Очищаем QListWidget перед добавлением новых клиентов
                         self.ui.listWidget.clear()
+
                         # Извлекаем информацию об адресах и добавляем их в QListWidget
                         clients_info = message.split(":")[1].strip()
-                        clients = clients_info.split(",")
-                        self.ui.listWidget.addItem(clients[count] + clients[count+1])
-                        count += 2
+                        clients = clients_info.split(", ")  # Разделяем список по запятой и пробелу
 
+                        for client in clients:
+                            self.ui.listWidget.addItem(client)  # Добавляем только IP клиента
                     else:
                         self.ui.textEdit.append(f'Сервер: {message}')  # Добавляем сообщение от сервера в текстовое поле
             except Exception as e:
@@ -146,6 +144,7 @@ class MainWindow(QMainWindow):
         finally:
             if connection:
                 connection.close()
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

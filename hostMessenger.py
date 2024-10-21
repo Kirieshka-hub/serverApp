@@ -1,10 +1,10 @@
 import socket
 import threading
-from PyQt5.QtWidgets import QApplication, QWidget, QLabel,QMainWindow
+from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QMainWindow
 from PyQt5 import QtCore
 import sys
 import sqlite3
-from  initUI import Ui_MainWindow
+from initUI import Ui_MainWindow
 
 
 def create_database():
@@ -16,7 +16,6 @@ def create_database():
             id INTEGER PRIMARY KEY,
             username TEXT UNIQUE,
             password TEXT
-            ip_adress TEXT
         )
         ''')
         connection.commit()
@@ -25,7 +24,6 @@ def create_database():
     finally:
         if connection:
             connection.close()
-
 
 
 class AwaitingWindow(QWidget):
@@ -51,7 +49,6 @@ class MainWindow(QMainWindow):
         self.server_sock.bind(('', 53210))
         self.server_sock.listen(5)
 
-
         # Запускаем поток для ожидания подключения
         threading.Thread(target=self.start_server, daemon=True).start()
 
@@ -66,18 +63,15 @@ class MainWindow(QMainWindow):
             print(f'Клиент подключен от {client_addr}')
 
             self.clients.append(client_sock)
-            self.ui.listWidget.addItem(f"{client_addr}")
+            self.ui.listWidget.addItem(f"{client_addr[0]}")  # Добавляем только IP клиента без порта
 
             self.notify_clients_of_new_connection()
 
-
-            # self.awaiting_window.close()
-
-            # Уведомляем всех клиентов о новом подключении
-            threading.Thread(target=self.handle_client, args=(client_sock,client_addr), daemon=True).start()
+            threading.Thread(target=self.handle_client, args=(client_sock, client_addr), daemon=True).start()
 
     def notify_clients_of_new_connection(self):
-        connected_clients = [f"{client.getpeername()}" for client in self.clients]
+        # Формируем список подключенных клиентов только с их IP
+        connected_clients = [f"{client.getpeername()[0]}" for client in self.clients]
         message = f"Подключенные клиенты: {', '.join(connected_clients)}"
         self.broadcast_message(message, sender=None)
 
@@ -93,13 +87,11 @@ class MainWindow(QMainWindow):
             print(f'Рассылка IP-сервера: {server_ip}')
             threading.Event().wait(2)
 
-
     def handle_client(self, client_sock, addr):
         while True:
             try:
                 message = client_sock.recv(1024).decode('utf-8')
                 if message:
-                    # print(f'Сообщение от клиента: {message}')
                     self.broadcast_message(message, client_sock)
                 else:
                     break
@@ -108,7 +100,6 @@ class MainWindow(QMainWindow):
                 break
         print(f"Client {addr} disconnected")
         self.clients.remove(client_sock)
-        # self.ui.listWidget.removeItemWidget(f"{addr}")
         client_sock.close()
 
     def broadcast_message(self, message, sender):
@@ -120,7 +111,6 @@ class MainWindow(QMainWindow):
                     print(f"Ошибка при отправке сообщения: {e}")
 
 
-
 if __name__ == "__main__":
     create_database()
     app = QApplication(sys.argv)
@@ -129,6 +119,4 @@ if __name__ == "__main__":
     awaiting_window.show()
 
     window = MainWindow(awaiting_window)
-    # window.show()
-
     sys.exit(app.exec_())
