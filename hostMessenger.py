@@ -17,7 +17,8 @@ def create_database():
             username TEXT UNIQUE,
             password TEXT,
             ip_address TEXT,
-            port INTEGER
+            port INTEGER,
+            is_active INTEGER DEFAULT 0
         )
         ''')
         connection.commit()
@@ -87,7 +88,7 @@ class MainWindow(QMainWindow):
                     elif message.startswith("LOGIN:"):
                         self.login_user(message, client_sock, addr)
                     elif message.startswith("GET_CLIENT_LIST"):
-                        self.send_client_list()
+                        self.send_client_list(client_sock)
                     elif message.startswith("TO:"):
                         # Обработка отправки сообщения конкретному пользователю
                         self.send_message_to_client(message, client_sock)
@@ -98,22 +99,30 @@ class MainWindow(QMainWindow):
         except Exception as e:
             print(f"Ошибка при получении сообщения: {e}")
         finally:
-            # Удаление клиента при отключении
             self.remove_client(addr)
             client_sock.close()
 
     def remove_client(self, addr):
-        """Удаление клиента и обновление списка пользователей"""
-        if addr in self.client_addresses:
-            del self.client_addresses[addr]
+        try:
+            connection = sqlite3.connect('users.db')
+            cursor = connection.cursor()
+            cursor.execute('UPDATE users SET is_active = 0 WHERE ip_address = ?', (addr[0],))
+            connection.commit()
 
-        for sock in self.clients:
-            if sock.getpeername() == addr:
-                self.clients.remove(sock)
-                break
+            if addr in self.client_addresses:
+                del self.client_addresses[addr]
+
+            for sock in self.clients:
+                if sock.getpeername() == addr:
+                    self.clients.remove(sock)
+                    break
+        except Exception as e:
+            print(f"Ошибка при деактивации пользователя: {e}")
+        finally:
+            if connection:
+                connection.close()
 
         print(f"Client {addr} отключился")
-        # Отправляем обновленный список всем клиентам
         self.send_client_list()
 
     def register_user(self, message, client_sock, addr):
@@ -124,8 +133,8 @@ class MainWindow(QMainWindow):
             try:
                 connection = sqlite3.connect('users.db')
                 cursor = connection.cursor()
-                cursor.execute('INSERT INTO users (username, password, ip_address, port) VALUES (?, ?, ?, ?)',
-                               (username, password, addr[0], addr[1]))
+                cursor.execute('INSERT INTO users (username, password, ip_address, port, is_active) VALUES (?, ?, ?, ?, ?)',
+                               (username, password, addr[0], addr[1], 1))  # Устанавливаем is_active = 1
                 connection.commit()
                 client_sock.sendall("REGISTER_SUCCESS".encode('utf-8'))
                 self.clients.append(client_sock)
@@ -152,7 +161,8 @@ class MainWindow(QMainWindow):
                 cursor.execute('SELECT password FROM users WHERE username = ?', (username,))
                 result = cursor.fetchone()
                 if result and result[0] == password:
-                    cursor.execute('UPDATE users SET ip_address = ?, port = ? WHERE username = ?', (addr[0], addr[1], username))
+                    cursor.execute('UPDATE users SET ip_address = ?, port = ?, is_active = 1 WHERE username = ?',
+                                   (addr[0], addr[1], username))
                     connection.commit()
                     client_sock.sendall("LOGIN_SUCCESS".encode('utf-8'))
                     self.clients.append(client_sock)
@@ -172,45 +182,44 @@ class MainWindow(QMainWindow):
         try:
             connection = sqlite3.connect('users.db')
             cursor = connection.cursor()
-            cursor.execute('SELECT username, ip_address, port FROM users WHERE ip_address IS NOT NULL')
+            cursor.execute('SELECT username, ip_address, port FROM users WHERE is_active = 1')
             clients = cursor.fetchall()
             client_list = [f"{username}:{ip}:{port}" for username, ip, port in clients]
             message = "CLIENT_LIST:" + ",".join(client_list)
 
-            # Отправляем сообщение каждому подключенному клиенту
             for client in self.clients:
                 try:
                     client.sendall(message.encode('utf-8'))
                 except Exception as e:
                     print(f"Ошибка при отправке списка клиенту: {e}")
-
         except Exception as e:
             print(f"Ошибка при получении списка клиентов: {e}")
         finally:
             if connection:
                 connection.close()
+
     def send_message_to_client(self, message, sender_sock):
         """
         Отправляет сообщение конкретному клиенту на основе IP.
         Формат сообщения: TO:<IP>:<message>
         """
         try:
-            # Извлекаем IP-адрес и сообщение из команды
             parts = message.split(":")
-            if len(parts) >= 3:
-                target_ip = parts[1]
-                msg_content = ":".join(parts[2:])
+            print(parts)
+            if len(parts) >= 4:
+                target_ip = parts[2]  # IP-адрес получателя
+                target_port = int(parts[-2])  # Порт получателя
+                msg_content = parts[-1]
 
-                # Найдем сокет клиента по IP
+                # Найдем сокет клиента по IP и порту
                 target_sock = None
                 for addr, sock in self.client_addresses.items():
-                    if addr[0] == target_ip:
+                    if addr[0] == target_ip and addr[1] == target_port:
                         target_sock = sock
                         break
 
                 if target_sock:
-                    target_sock.sendall(f"Сообщение от {sender_sock.getpeername()}: {msg_content}".encode('utf-8'))
-                    print(f"Сообщение отправлено на {target_ip}")
+                    target_sock.sendall(f"Сообщение от {sender_sock.getpeername()} ~ : {msg_content}".encode('utf-8'))
                 else:
                     sender_sock.sendall(f"ERROR: Клиент с IP {target_ip} не найден.".encode('utf-8'))
             else:
@@ -218,14 +227,6 @@ class MainWindow(QMainWindow):
         except Exception as e:
             print(f"Ошибка при отправке сообщения: {e}")
             sender_sock.sendall(f"ERROR: {e}".encode('utf-8'))
-
-    def broadcast_message(self, message, sender):
-        for client in self.clients:
-            if sender != client:
-                try:
-                    client.sendall(message.encode('utf-8'))
-                except Exception as e:
-                    print(f"Ошибка при отправке сообщения: {e}")
 
 
 if __name__ == "__main__":
