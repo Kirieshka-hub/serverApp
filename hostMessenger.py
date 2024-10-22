@@ -61,6 +61,8 @@ class MainWindow(QMainWindow):
             client_sock, client_addr = self.server_sock.accept()
             print(f'Клиент подключен от {client_addr}')
 
+            # Сохранение сокета клиента
+            self.client_addresses[client_addr] = client_sock
             threading.Thread(target=self.handle_client, args=(client_sock, client_addr), daemon=True).start()
 
     def broadcast_ip(self):
@@ -87,8 +89,8 @@ class MainWindow(QMainWindow):
                     elif message.startswith("GET_CLIENT_LIST"):
                         self.send_client_list(client_sock)
                     elif message.startswith("TO:"):
-                        # Ваш существующий код для отправки сообщений конкретному клиенту
-                        pass
+                        # Обработка отправки сообщения конкретному пользователю
+                        self.send_message_to_client(message, client_sock)
                     else:
                         self.broadcast_message(message, client_sock)
                 else:
@@ -155,7 +157,7 @@ class MainWindow(QMainWindow):
         else:
             client_sock.sendall("LOGIN_FAIL:Invalid format".encode('utf-8'))
 
-    def send_client_list(self, client_sock):
+    def send_client_list(self, client_sock=None):
         try:
             connection = sqlite3.connect('users.db')
             cursor = connection.cursor()
@@ -163,13 +165,48 @@ class MainWindow(QMainWindow):
             clients = cursor.fetchall()
             client_list = [f"{username}:{ip}:{port}" for username, ip, port in clients]
             message = "CLIENT_LIST:" + ",".join(client_list)
-            client_sock.sendall(message.encode('utf-8'))
+
+            # Отправляем сообщение каждому подключенному клиенту
+            for client in self.clients:
+                try:
+                    client.sendall(message.encode('utf-8'))
+                except Exception as e:
+                    print(f"Ошибка при отправке списка клиенту: {e}")
+
         except Exception as e:
-            print(f"Ошибка при отправке списка клиентов: {e}")
-            client_sock.sendall(f"ERROR:{e}".encode('utf-8'))
+            print(f"Ошибка при получении списка клиентов: {e}")
         finally:
             if connection:
                 connection.close()
+    def send_message_to_client(self, message, sender_sock):
+        """
+        Отправляет сообщение конкретному клиенту на основе IP.
+        Формат сообщения: TO:<IP>:<message>
+        """
+        try:
+            # Извлекаем IP-адрес и сообщение из команды
+            parts = message.split(":")
+            if len(parts) >= 3:
+                target_ip = parts[1]
+                msg_content = ":".join(parts[2:])
+
+                # Найдем сокет клиента по IP
+                target_sock = None
+                for addr, sock in self.client_addresses.items():
+                    if addr[0] == target_ip:
+                        target_sock = sock
+                        break
+
+                if target_sock:
+                    target_sock.sendall(f"Сообщение от {sender_sock.getpeername()}: {msg_content}".encode('utf-8'))
+                    print(f"Сообщение отправлено на {target_ip}")
+                else:
+                    sender_sock.sendall(f"ERROR: Клиент с IP {target_ip} не найден.".encode('utf-8'))
+            else:
+                sender_sock.sendall("ERROR: Неверный формат сообщения.".encode('utf-8'))
+        except Exception as e:
+            print(f"Ошибка при отправке сообщения: {e}")
+            sender_sock.sendall(f"ERROR: {e}".encode('utf-8'))
 
     def broadcast_message(self, message, sender):
         for client in self.clients:
