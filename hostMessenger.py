@@ -78,8 +78,8 @@ class MainWindow(QMainWindow):
             threading.Event().wait(2)
 
     def handle_client(self, client_sock, addr):
-        while True:
-            try:
+        try:
+            while True:
                 message = client_sock.recv(1024).decode('utf-8')
                 if message:
                     if message.startswith("REGISTER:"):
@@ -87,7 +87,7 @@ class MainWindow(QMainWindow):
                     elif message.startswith("LOGIN:"):
                         self.login_user(message, client_sock, addr)
                     elif message.startswith("GET_CLIENT_LIST"):
-                        self.send_client_list(client_sock)
+                        self.send_client_list()
                     elif message.startswith("TO:"):
                         # Обработка отправки сообщения конкретному пользователю
                         self.send_message_to_client(message, client_sock)
@@ -95,15 +95,26 @@ class MainWindow(QMainWindow):
                         self.broadcast_message(message, client_sock)
                 else:
                     break
-            except Exception as e:
-                print(f"Ошибка при получении сообщения: {e}")
-                break
-        print(f"Client {addr} disconnected")
-        if client_sock in self.clients:
-            self.clients.remove(client_sock)
+        except Exception as e:
+            print(f"Ошибка при получении сообщения: {e}")
+        finally:
+            # Удаление клиента при отключении
+            self.remove_client(addr)
+            client_sock.close()
+
+    def remove_client(self, addr):
+        """Удаление клиента и обновление списка пользователей"""
         if addr in self.client_addresses:
             del self.client_addresses[addr]
-        client_sock.close()
+
+        for sock in self.clients:
+            if sock.getpeername() == addr:
+                self.clients.remove(sock)
+                break
+
+        print(f"Client {addr} отключился")
+        # Отправляем обновленный список всем клиентам
+        self.send_client_list()
 
     def register_user(self, message, client_sock, addr):
         parts = message.split(":")
