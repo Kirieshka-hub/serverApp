@@ -3,7 +3,6 @@ import threading
 from PyQt5.QtWidgets import QMainWindow, QApplication, QWidget, QLabel
 from PyQt5 import QtCore, QtWidgets
 import sys
-import sqlite3
 from initUI import Ui_MainWindow
 
 
@@ -28,11 +27,13 @@ class MainWindow(QMainWindow):
 
         self.client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        # Ссылка на ожидающее окно
         self.awaiting_window = awaiting_window
 
-        # Подключаем кнопку отправки сообщения
         self.ui.pushButton_5.clicked.connect(self.send_message)
+
+        self.ui.listWidget.itemClicked.connect(self.client_selected)
+
+        self.selected_client_ip_port = None
 
     def connect_to_server(self):
         udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -64,86 +65,71 @@ class MainWindow(QMainWindow):
             try:
                 message = self.client_sock.recv(1024).decode('utf-8')
                 if message:
-                    # Проверяем, является ли полученное сообщение списком клиентов
-                    if message.startswith("Подключенные клиенты:"):
-                        # Очищаем QListWidget перед добавлением новых клиентов
+                    if message.startswith("REGISTER_SUCCESS"):
+                        self.ui.go_to_third_page()
+                        self.client_sock.sendall("GET_CLIENT_LIST".encode('utf-8'))
+                    elif message.startswith("REGISTER_FAIL"):
+                        error_msg = message.split(":", 1)[1] if ":" in message else "Registration failed"
+                        QtWidgets.QMessageBox.warning(self, 'Ошибка', error_msg)
+                    elif message.startswith("LOGIN_SUCCESS"):
+                        self.ui.go_to_third_page()
+                        self.client_sock.sendall("GET_CLIENT_LIST".encode('utf-8'))
+                    elif message.startswith("LOGIN_FAIL"):
+                        error_msg = message.split(":", 1)[1] if ":" in message else "Login failed"
+                        QtWidgets.QMessageBox.warning(self, 'Ошибка', error_msg)
+                    elif message.startswith("CLIENT_LIST:"):
+                        clients_info = message.split(":", 1)[1]
+                        clients = clients_info.split(",")
                         self.ui.listWidget.clear()
-
-                        # Извлекаем информацию об адресах и добавляем их в QListWidget
-                        clients_info = message.split(":")[1].strip()
-                        clients = clients_info.split(", ")  # Разделяем список по запятой и пробелу
-
                         for client in clients:
-                            self.ui.listWidget.addItem(client)  # Добавляем только IP клиента
+                            self.ui.listWidget.addItem(client)
                     else:
-                        self.ui.textEdit.append(f'Сервер: {message}')  # Добавляем сообщение от сервера в текстовое поле
+                        self.ui.textEdit.append(f'{message}')
             except Exception as e:
                 print(f"Ошибка при получении сообщения: {e}")
                 break
 
+    def client_selected(self, item):
+        self.selected_client_ip_port = item.text()
+        print(f"Выбран клиент: {self.selected_client_ip_port}")
+
     def send_message(self):
         message = self.ui.lineEdit_6.text()
-        if message:
+        if message and self.selected_client_ip_port:
             try:
-                self.client_sock.sendall(message.encode('utf-8'))
-                self.ui.textEdit.append(f"Вы: {message}")
+                final_message = f"TO:{self.selected_client_ip_port}:{message}"
+                self.client_sock.sendall(final_message.encode('utf-8'))
+                self.ui.textEdit.append(f"Вы (клиенту {self.selected_client_ip_port}): {message}")
                 self.ui.lineEdit_6.clear()
             except Exception as e:
                 print(f"Ошибка при отправке сообщения: {e}")
 
     def login(self):
-        username = self.ui.lineEdit.text()  # Поле логина
-        password = self.ui.lineEdit_2.text()  # Поле пароля
+        username = self.ui.lineEdit.text()
+        password = self.ui.lineEdit_2.text()
 
+        login_message = f"LOGIN:{username}:{password}"
         try:
-            connection = sqlite3.connect('users.db')
-            cursor = connection.cursor()
-
-            cursor.execute('SELECT password FROM users WHERE username = ?', (username,))
-            result = cursor.fetchone()
-
-            if result and result[0] == password:
-                self.ui.go_to_third_page()
-            else:
-                QtWidgets.QMessageBox.warning(self, 'Ошибка', 'Неверный логин или пароль.')
-
-        except sqlite3.Error as e:
-            QtWidgets.QMessageBox.critical(self, 'Ошибка базы данных',
-                                           f'Произошла ошибка при работе с базой данных: {e}')
-
-        finally:
-            if connection:
-                connection.close()
+            self.client_sock.sendall(login_message.encode('utf-8'))
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, 'Ошибка', f'Не удалось отправить данные для входа: {e}')
+            return
 
     def register(self):
-        username = self.ui.lineEdit_3.text()  # Поле логина для регистрации
-        password = self.ui.lineEdit_4.text()  # Поле пароля для регистрации
+        username = self.ui.lineEdit_3.text()
+        password = self.ui.lineEdit_4.text()
+        confirm_password = self.ui.lineEdit_5.text()
 
+        if password != confirm_password:
+            QtWidgets.QMessageBox.warning(self, 'Ошибка', 'Пароли не совпадают.')
+            return
+
+        registration_message = f"REGISTER:{username}:{password}"
         try:
-            connection = sqlite3.connect('users.db')
-            cursor = connection.cursor()
-
-            if self.ui.lineEdit_4.text() == self.ui.lineEdit_5.text():
-                cursor.execute('INSERT INTO users (username, password) VALUES (?, ?)', (username, password))
-                connection.commit()
-                # QtWidgets.QMessageBox.information(self, 'Успех', 'Вы успешно зарегистрировались!')
-                self.ui.go_to_third_page()
-                self.ui.lineEdit_3.clear()
-                self.ui.lineEdit_4.clear()
-                self.ui.lineEdit_5.clear()
-            else:
-                QtWidgets.QMessageBox.warning(self, 'Ошибка', 'Пароли не совпадают или не написаны')
-
-        except sqlite3.IntegrityError:
-            QtWidgets.QMessageBox.warning(self, 'Ошибка', 'Пользователь с таким именем уже существует.')
-
-        except sqlite3.Error as e:
-            QtWidgets.QMessageBox.critical(self, 'Ошибка базы данных',
-                                           f'Произошла ошибка при работе с базой данных: {e}')
-
-        finally:
-            if connection:
-                connection.close()
+            self.client_sock.sendall(registration_message.encode('utf-8'))
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, 'Ошибка', f'Не удалось отправить данные регистрации: {e}')
+            return
 
 
 if __name__ == "__main__":
