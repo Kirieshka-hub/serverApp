@@ -1,9 +1,42 @@
 import socket
 import threading
-from PyQt5.QtWidgets import QMainWindow, QApplication, QWidget, QLabel
+from PyQt5.QtWidgets import QMainWindow, QApplication, QWidget, QLabel, QDialog, QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout
 from PyQt5 import QtCore, QtWidgets
 import sys
 from initUI import Ui_MainWindow
+
+
+class EmojiDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Выбор смайлика")
+        self.setGeometry(500, 500, 300, 300)
+
+        # Список доступных смайликов
+        emojis = [
+            "😊", "😂", "😍", "😎", "😢", "😡", "😱", "🥳", "🤔", "🤗",
+            "🙄", "😴", "😷", "🤒", "🤕", "🙃", "😉", "😋", "🤪", "🤩",
+            "👍", "👎", "👏", "🙏", "👌", "🤘", "✌️", "👋", "🤝", "💪",
+            "❤️", "💔", "💙", "💜", "💥", "💫", "🔥", "⭐", "🌙", "☀️",
+            "🎉", "🎊", "🎁", "🎈", "🎂", "🍕", "🍔", "🍟", "🍩", "🍪"
+        ]
+
+        layout = QGridLayout()  # Используем сетку для удобного размещения смайликов
+
+        # Создаем кнопки для каждого смайлика
+        for i, emoji in enumerate(emojis):
+            button = QPushButton(emoji)
+            button.setFixedSize(40, 40)
+            button.clicked.connect(lambda _, e=emoji: self.send_emoji(e))
+            layout.addWidget(button, i // 10, i % 10)  # размещаем по 10 смайликов в строке
+
+        self.setLayout(layout)
+        self.selected_emoji = None
+
+    def send_emoji(self, emoji):
+        # Выбираем смайлик и закрываем диалог
+        self.selected_emoji = emoji
+        self.accept()
 
 
 class AwaitingWindow(QWidget):
@@ -22,19 +55,27 @@ class MainWindow(QMainWindow):
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
 
+        # Подключаем кнопку для логина и регистрации
         self.ui.pushButton.clicked.connect(self.login)
         self.ui.pushButton_3.clicked.connect(self.register)
+
+        # Подключаем кнопку "Назад" для очистки текстового поля
+        self.ui.pushButton_7.clicked.connect(self.clear_text_edit)
+
+        # Подключаем кнопку для выбора смайликов
+        self.ui.pushButton_6.clicked.connect(self.open_emoji_dialog)
 
         self.client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         self.awaiting_window = awaiting_window
 
+        # Подключаем кнопку для отправки сообщений
         self.ui.pushButton_5.clicked.connect(self.send_message)
 
+        # Подключаем список для выбора клиента
         self.ui.listWidget.itemClicked.connect(self.client_selected)
 
         self.selected_client_ip_port = None
-
 
     def connect_to_server(self):
         udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -60,8 +101,6 @@ class MainWindow(QMainWindow):
 
             except Exception as e:
                 print(f"Failed to connect: {e}")
-
-
 
     def receive_moves(self):
         while True:
@@ -107,6 +146,19 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 print(f"Ошибка при отправке сообщения: {e}")
 
+    def open_emoji_dialog(self):
+        # Открываем диалоговое окно выбора смайликов
+        dialog = EmojiDialog(self)
+        if dialog.exec_():
+            selected_emoji = dialog.selected_emoji
+            if selected_emoji and self.selected_client_ip_port:
+                try:
+                    final_message = f"TO:{self.selected_client_ip_port}:{selected_emoji}"
+                    self.client_sock.sendall(final_message.encode('utf-8'))
+                    self.ui.textEdit.append(f"Вы (клиенту {self.selected_client_ip_port}): {selected_emoji}")
+                except Exception as e:
+                    print(f"Ошибка при отправке смайлика: {e}")
+
     def login(self):
         username = self.ui.lineEdit.text()
         password = self.ui.lineEdit_2.text()
@@ -133,6 +185,11 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, 'Ошибка', f'Не удалось отправить данные регистрации: {e}')
             return
+
+    def clear_text_edit(self):
+        # Очищаем содержимое текстового поля
+        self.ui.textEdit.clear()
+        print("Текстовое поле очищено")
 
 
 if __name__ == "__main__":
