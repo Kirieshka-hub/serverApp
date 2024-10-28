@@ -116,6 +116,7 @@ class MainWindow(QMainWindow):
                 if sock.getpeername() == addr:
                     self.clients.remove(sock)
                     break
+
         except Exception as e:
             print(f"Ошибка при деактивации пользователя: {e}")
         finally:
@@ -133,8 +134,9 @@ class MainWindow(QMainWindow):
             try:
                 connection = sqlite3.connect('users.db')
                 cursor = connection.cursor()
-                cursor.execute('INSERT INTO users (username, password, ip_address, port, is_active) VALUES (?, ?, ?, ?, ?)',
-                               (username, password, addr[0], addr[1], 1))  # Устанавливаем is_active = 1
+                cursor.execute(
+                    'INSERT INTO users (username, password, ip_address, port, is_active) VALUES (?, ?, ?, ?, ?)',
+                    (username, password, addr[0], addr[1], 1))  # Устанавливаем is_active = 1
                 connection.commit()
                 client_sock.sendall("REGISTER_SUCCESS".encode('utf-8'))
                 self.clients.append(client_sock)
@@ -200,18 +202,15 @@ class MainWindow(QMainWindow):
 
     def send_message_to_client(self, message, sender_sock):
         """
-        Отправляет сообщение конкретному клиенту на основе IP.
-        Формат сообщения: TO:<IP>:<message>
         """
         try:
             parts = message.split(":")
             print(parts)
             if len(parts) >= 4:
-                target_ip = parts[2]  # IP-адрес получателя
-                target_port = int(parts[-2])  # Порт получателя
+                target_ip = parts[2]
+                target_port = int(parts[-2])
                 msg_content = parts[-1]
 
-                # Найдем сокет клиента по IP и порту
                 target_sock = None
                 for addr, sock in self.client_addresses.items():
                     if addr[0] == target_ip and addr[1] == target_port:
@@ -219,7 +218,8 @@ class MainWindow(QMainWindow):
                         break
 
                 if target_sock:
-                    target_sock.sendall(f"Сообщение от {sender_sock.getpeername()} ~ : {msg_content}".encode('utf-8'))
+                    target_sock.sendall(
+                        f"Сообщение от {sender_sock.getpeername()} ~ : {msg_content}".encode('utf-8'))
                 else:
                     sender_sock.sendall(f"ERROR: Клиент с IP {target_ip} не найден.".encode('utf-8'))
             else:
@@ -227,7 +227,6 @@ class MainWindow(QMainWindow):
         except Exception as e:
             print(f"Ошибка при отправке сообщения: {e}")
             sender_sock.sendall(f"ERROR: {e}".encode('utf-8'))
-
 
 if __name__ == "__main__":
     create_database()
