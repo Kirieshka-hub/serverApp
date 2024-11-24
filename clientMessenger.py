@@ -28,7 +28,7 @@ class EmojiDialog(QtWidgets.QDialog):
             "😊", "😂", "😍", "😎", "😢", "😡", "😱", "🥳", "🤔", "🤗",
             "🙄", "😴", "😷", "🤒", "🤕", "🙃", "😉", "😋", "🤪", "🤩",
             "👍", "👎", "👏", "🙏", "👌", "🤘", "✌️", "👋", "🤝", "💪",
-            "❤️", "💔", "💙", "💜", "💥", "💫", "🔥", "⭐", "🌙", "☀️",
+            "❤️", "💔", "💙", "💜", "💥", "💫", "🔥", "⭐️", "🌙", "☀️",
             "🎉", "🎊", "🎁", "🎈", "🎂", "🍕", "🍔", "🍟", "🍩", "🍪"
         ]
 
@@ -66,6 +66,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
         self.message_handler = MessageHandler(parent=self)
+
+
 
 
         # Подключаем кнопку для логина и регистрации
@@ -114,6 +116,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
             except Exception as e:
                 print(f"Failed to connect: {e}")
+
 
     def receive_moves(self):
         while True:
@@ -196,7 +199,6 @@ class MainWindow(QtWidgets.QMainWindow):
     def clear_text_edit(self):
         self.ui.textEdit.clear()
         print("Текстовое поле очищено")
-
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)

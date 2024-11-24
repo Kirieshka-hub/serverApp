@@ -7,8 +7,6 @@ import sqlite3
 from initUI import Ui_MainWindow
 
 
-
-
 def create_database():
     try:
         connection = sqlite3.connect('users.db')
@@ -104,7 +102,6 @@ class MainWindow(QtWidgets.QMainWindow):
             self.remove_client(addr)
             client_sock.close()
 
-
     def register_user(self, message, client_sock, addr):
         parts = message.split(":")
         if len(parts) >= 3:
@@ -113,22 +110,15 @@ class MainWindow(QtWidgets.QMainWindow):
             try:
                 connection = sqlite3.connect('users.db')
                 cursor = connection.cursor()
-
-                # Проверяем наличие пользователя с таким же username и password
-                cursor.execute('SELECT COUNT(*) FROM users WHERE username = ? AND password = ?', (username, password))
-                result = cursor.fetchone()
-
-                if result[0] > 0:
-                    client_sock.sendall(
-                        "REGISTER_FAIL:User with same username and password already exists".encode('utf-8'))
-                else:
-                    cursor.execute(
-                        'INSERT INTO users (username, password, ip_address, port, is_active) VALUES (?, ?, ?, ?, ?)',
-                        (username, password, addr[0], addr[1], 1))  # Устанавливаем is_active = 1
-                    connection.commit()
-                    client_sock.sendall("REGISTER_SUCCESS".encode('utf-8'))
-                    self.clients.append(client_sock)
-                    self.client_addresses[addr] = client_sock
+                cursor.execute(
+                    'INSERT INTO users (username, password, ip_address, port, is_active) VALUES (?, ?, ?, ?, ?)',
+                    (username, password, addr[0], addr[1], 1))  # Устанавливаем is_active = 1
+                connection.commit()
+                client_sock.sendall("REGISTER_SUCCESS".encode('utf-8'))
+                self.clients.append(client_sock)
+                self.client_addresses[addr] = client_sock
+            except sqlite3.IntegrityError:
+                client_sock.sendall("REGISTER_FAIL:Username already exists".encode('utf-8'))
             except Exception as e:
                 client_sock.sendall(f"REGISTER_FAIL:{e}".encode('utf-8'))
             finally:
@@ -212,7 +202,6 @@ class MainWindow(QtWidgets.QMainWindow):
     def send_message_to_client(self, message, sender_sock):
         try:
             parts = message.split(":")
-            print(parts)
             if len(parts) >= 4:
                 target_ip = parts[2]
                 target_port = int(parts[-2])
@@ -225,7 +214,8 @@ class MainWindow(QtWidgets.QMainWindow):
                         break
 
                 if target_sock:
-                    target_sock.sendall(f"Сообщение от {sender_sock.getpeername()} ~ : {msg_content}".encode('utf-8'))
+                    target_sock.sendall(
+                        f"Сообщение от {sender_sock.getpeername()} ~ : {msg_content}".encode('utf-8'))
                 else:
                     sender_sock.sendall(f"ERROR: Клиент с IP {target_ip} не найден.".encode('utf-8'))
             else:
@@ -244,5 +234,3 @@ if __name__ == "__main__":
 
     window = MainWindow(awaiting_window)
     sys.exit(app.exec_())
-
-#
