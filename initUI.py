@@ -386,6 +386,16 @@ class Ui_MainWindow(object):
     def go_to_four_page(self):
         self.stackedWidget.setCurrentIndex(3)
 
+
+    def styled_message(self, message):
+        styled_message = f"""
+                        <div style="background-color: lightblue; border-radius: 10px; padding: 10px; margin: 5px 0;">
+                            <span style="font-family: Arial, sans-serif; font-size: 14px; color: black;">
+                                Вы (клиенту {self.selected_client_ip_port}): {message}
+                            </span>
+                        </div>
+                        """
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     MainWindow = QtWidgets.QMainWindow()

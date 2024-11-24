@@ -1,10 +1,12 @@
 import socket
 import threading
-from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QMainWindow
-from PyQt5 import QtCore
+# from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QMainWindow
+from PyQt5 import QtCore, QtWidgets
 import sys
 import sqlite3
 from initUI import Ui_MainWindow
+
+
 
 
 def create_database():
@@ -29,17 +31,17 @@ def create_database():
             connection.close()
 
 
-class AwaitingWindow(QWidget):
+class AwaitingWindow(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle('Ожидание подключения')
         self.setWindowFlag(QtCore.Qt.WindowStaysOnTopHint)
         self.setGeometry(100, 100, 300, 100)
-        self.label = QLabel("Ожидание подключения клиента...", self)
+        self.label = QtWidgets.QLabel("Ожидание подключения клиента...", self)
         self.label.setGeometry(50, 20, 200, 50)
 
 
-class MainWindow(QMainWindow):
+class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, awaiting_window):
         super().__init__()
         self.clients = []
@@ -50,7 +52,7 @@ class MainWindow(QMainWindow):
 
         self.server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_sock.bind(('', 53210))
-        self.server_sock.listen(5)
+        self.server_sock.listen(2)
 
         threading.Thread(target=self.start_server, daemon=True).start()
 
@@ -102,28 +104,6 @@ class MainWindow(QMainWindow):
             self.remove_client(addr)
             client_sock.close()
 
-    def remove_client(self, addr):
-        try:
-            connection = sqlite3.connect('users.db')
-            cursor = connection.cursor()
-            cursor.execute('UPDATE users SET is_active = 0 WHERE ip_address = ?', (addr[0],))
-            connection.commit()
-
-            if addr in self.client_addresses:
-                del self.client_addresses[addr]
-
-            for sock in self.clients:
-                if sock.getpeername() == addr:
-                    self.clients.remove(sock)
-                    break
-        except Exception as e:
-            print(f"Ошибка при деактивации пользователя: {e}")
-        finally:
-            if connection:
-                connection.close()
-
-        print(f"Client {addr} отключился")
-        self.send_client_list()
 
     def register_user(self, message, client_sock, addr):
         parts = message.split(":")
@@ -133,16 +113,23 @@ class MainWindow(QMainWindow):
             try:
                 connection = sqlite3.connect('users.db')
                 cursor = connection.cursor()
-                cursor.execute('INSERT INTO users (username, password, ip_address, port, is_active) VALUES (?, ?, ?, ?, ?)',
-                               (username, password, addr[0], addr[1], 1))  # Устанавливаем is_active = 1
-                connection.commit()
-                client_sock.sendall("REGISTER_SUCCESS".encode('utf-8'))
-                self.clients.append(client_sock)
-                self.client_addresses[addr] = client_sock
-            except sqlite3.IntegrityError:
-                client_sock.sendall("REGISTER_FAIL:Username already exists".encode('utf-8'))
+
+                # Проверяем наличие пользователя с таким же username и password
+                cursor.execute('SELECT COUNT(*) FROM users WHERE username = ? AND password = ?', (username, password))
+                result = cursor.fetchone()
+
+                if result[0] > 0:
+                    client_sock.sendall(
+                        "REGISTER_FAIL:User with same username and password already exists".encode('utf-8'))
+                else:
+                    cursor.execute(
+                        'INSERT INTO users (username, password, ip_address, port, is_active) VALUES (?, ?, ?, ?, ?)',
+                        (username, password, addr[0], addr[1], 1))  # Устанавливаем is_active = 1
+                    connection.commit()
+                    client_sock.sendall("REGISTER_SUCCESS".encode('utf-8'))
+                    self.clients.append(client_sock)
+                    self.client_addresses[addr] = client_sock
             except Exception as e:
-                print(f"Ошибка при регистрации пользователя: {e}")
                 client_sock.sendall(f"REGISTER_FAIL:{e}".encode('utf-8'))
             finally:
                 if connection:
@@ -198,20 +185,39 @@ class MainWindow(QMainWindow):
             if connection:
                 connection.close()
 
+    def remove_client(self, addr):
+        try:
+            connection = sqlite3.connect('users.db')
+            cursor = connection.cursor()
+            cursor.execute('UPDATE users SET is_active = 0 WHERE ip_address = ? AND port = ?', (addr[0], addr[1]))
+            connection.commit()
+
+            # Удаляем из client_addresses и self.clients
+            if addr in self.client_addresses:
+                del self.client_addresses[addr]
+
+            for sock in self.clients:
+                if sock.getpeername() == addr:
+                    self.clients.remove(sock)
+                    break
+
+            print(f"Client {addr} отключился")
+            self.send_client_list()
+        except Exception as e:
+            print(f"Ошибка при деактивации пользователя: {e}")
+        finally:
+            if connection:
+                connection.close()
+
     def send_message_to_client(self, message, sender_sock):
-        """
-        Отправляет сообщение конкретному клиенту на основе IP.
-        Формат сообщения: TO:<IP>:<message>
-        """
         try:
             parts = message.split(":")
             print(parts)
             if len(parts) >= 4:
-                target_ip = parts[2]  # IP-адрес получателя
-                target_port = int(parts[-2])  # Порт получателя
+                target_ip = parts[2]
+                target_port = int(parts[-2])
                 msg_content = parts[-1]
 
-                # Найдем сокет клиента по IP и порту
                 target_sock = None
                 for addr, sock in self.client_addresses.items():
                     if addr[0] == target_ip and addr[1] == target_port:
@@ -231,10 +237,12 @@ class MainWindow(QMainWindow):
 
 if __name__ == "__main__":
     create_database()
-    app = QApplication(sys.argv)
+    app = QtWidgets.QApplication(sys.argv)
 
     awaiting_window = AwaitingWindow()
     awaiting_window.show()
 
     window = MainWindow(awaiting_window)
     sys.exit(app.exec_())
+
+#

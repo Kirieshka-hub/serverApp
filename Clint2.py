@@ -1,12 +1,23 @@
 import socket
 import threading
-from PyQt5.QtWidgets import QMainWindow, QApplication, QWidget, QLabel, QDialog, QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout
+# from PyQt5.QtWidgets import QMainWindow, QApplication, QWidget, QLabel, QDialog, QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout
 from PyQt5 import QtCore, QtWidgets
 import sys
+from PyQt5.QtCore import pyqtSignal, QObject
 from initUI import Ui_MainWindow
 
+class MessageHandler(QObject):
+    show_warning_signal = pyqtSignal(str, str)  # Сигнал для показа предупреждений
 
-class EmojiDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.parent = parent
+        self.show_warning_signal.connect(self.show_warning)  # Связываем сигнал с методом
+
+    def show_warning(self, title, message):
+        QtWidgets.QMessageBox.warning(self.parent, title, message)  # Показываем предупреждение
+
+class EmojiDialog(QtWidgets.QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Выбор смайлика")
@@ -21,14 +32,14 @@ class EmojiDialog(QDialog):
             "🎉", "🎊", "🎁", "🎈", "🎂", "🍕", "🍔", "🍟", "🍩", "🍪"
         ]
 
-        layout = QGridLayout()  # Используем сетку для удобного размещения смайликов
+        layout = QtWidgets.QGridLayout()  # Используем сетку для удобного размещения смайликов
 
         # Создаем кнопки для каждого смайлика
         for i, emoji in enumerate(emojis):
-            button = QPushButton(emoji)
+            button = QtWidgets.QPushButton(emoji)
             button.setFixedSize(40, 40)
             button.clicked.connect(lambda _, e=emoji: self.send_emoji(e))
-            layout.addWidget(button, i // 10, i % 10)  # размещаем по 10 смайликов в строке
+            layout.addWidget(button, i // 10, i % 10)
 
         self.setLayout(layout)
         self.selected_emoji = None
@@ -39,21 +50,23 @@ class EmojiDialog(QDialog):
         self.accept()
 
 
-class AwaitingWindow(QWidget):
+class AwaitingWindow(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle('Ожидание подключения')
         self.setWindowFlag(QtCore.Qt.WindowStaysOnTopHint)
         self.setGeometry(1400, 850, 300, 100)
-        self.label = QLabel("Ожидание подключения клиента...", self)
+        self.label = QtWidgets.QLabel("Ожидание подключения клиента...", self)
         self.label.setGeometry(50, 20, 200, 50)
 
 
-class MainWindow(QMainWindow):
+class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, awaiting_window):
         super().__init__()
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
+        self.message_handler = MessageHandler(parent=self)
+
 
         # Подключаем кнопку для логина и регистрации
         self.ui.pushButton.clicked.connect(self.login)
@@ -111,14 +124,12 @@ class MainWindow(QMainWindow):
                         self.ui.go_to_third_page()
                         self.client_sock.sendall("GET_CLIENT_LIST".encode('utf-8'))
                     elif message.startswith("REGISTER_FAIL"):
-                        error_msg = message.split(":", 1)[1] if ":" in message else "Registration failed"
-                        QtWidgets.QMessageBox.warning(self, 'Ошибка', error_msg)
+                        self.message_handler.show_warning_signal.emit("Ошибка", "Такой пользователь уже существует!")
                     elif message.startswith("LOGIN_SUCCESS"):
                         self.ui.go_to_third_page()
                         self.client_sock.sendall("GET_CLIENT_LIST".encode('utf-8'))
                     elif message.startswith("LOGIN_FAIL"):
-                        error_msg = message.split(":", 1)[1] if ":" in message else "Login failed"
-                        QtWidgets.QMessageBox.warning(self, 'Ошибка', error_msg)
+                        self.message_handler.show_warning_signal.emit("Ошибка", "Такого пользователя нет!")
                     elif message.startswith("CLIENT_LIST:"):
                         clients_info = message.split(":", 1)[1]
                         clients = clients_info.split(",")
@@ -164,11 +175,9 @@ class MainWindow(QMainWindow):
         password = self.ui.lineEdit_2.text()
 
         login_message = f"LOGIN:{username}:{password}"
-        try:
-            self.client_sock.sendall(login_message.encode('utf-8'))
-        except Exception as e:
-            QtWidgets.QMessageBox.critical(self, 'Ошибка', f'Не удалось отправить данные для входа: {e}')
-            return
+
+        self.client_sock.sendall(login_message.encode('utf-8'))
+
 
     def register(self):
         username = self.ui.lineEdit_3.text()
@@ -176,24 +185,21 @@ class MainWindow(QMainWindow):
         confirm_password = self.ui.lineEdit_5.text()
 
         if password != confirm_password:
-            QtWidgets.QMessageBox.warning(self, 'Ошибка', 'Пароли не совпадают.')
+            QtWidgets.QMessageBox.warning(self, 'Ошибка', 'Пароли не совпадают!')
             return
 
         registration_message = f"REGISTER:{username}:{password}"
-        try:
-            self.client_sock.sendall(registration_message.encode('utf-8'))
-        except Exception as e:
-            QtWidgets.QMessageBox.critical(self, 'Ошибка', f'Не удалось отправить данные регистрации: {e}')
-            return
+
+        self.client_sock.sendall(registration_message.encode('utf-8'))
+
 
     def clear_text_edit(self):
-        # Очищаем содержимое текстового поля
         self.ui.textEdit.clear()
         print("Текстовое поле очищено")
 
 
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
+    app = QtWidgets.QApplication(sys.argv)
 
     awaiting_window = AwaitingWindow()
     awaiting_window.show()
@@ -202,3 +208,4 @@ if __name__ == "__main__":
     client_window.connect_to_server()
 
     sys.exit(app.exec_())
+#
