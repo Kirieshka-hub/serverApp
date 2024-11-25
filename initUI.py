@@ -337,7 +337,7 @@ class Ui_MainWindow(object):
         self.pushButton_7.clicked.connect(self.go_to_third_page)
 
         # self.listWidget.addItem("first")
-        self.listWidget.itemClicked.connect(self.go_to_four_page)
+        # self.listWidget.itemClicked.connect(self.go_to_four_page)
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
