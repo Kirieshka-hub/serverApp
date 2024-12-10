@@ -81,23 +81,21 @@ class MainWindow(QtWidgets.QMainWindow):
         udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         udp_sock.bind(('', 37021))
 
-        print('Looking for the server...')
-        data, addr = udp_sock.recvfrom(1024)
-        message = data.decode('utf-8')
-        if message.startswith('SERVER_IP:'):
-            server_ip = message.split(':')[1]
-            print(f'Server IP found: {server_ip}')
+        print('Searching for server...')
+        try:
+            data, addr = udp_sock.recvfrom(1024)
+            message = data.decode('utf-8')
+            if message.startswith('SERVER_IP:'):
+                server_ip = message.split(':')[1]
+                print(f'Found server IP: {server_ip}')
 
-            try:
                 self.client_sock.connect((server_ip, 53210))
                 print('Connected to server')
-
                 self.awaiting_window.close()
                 self.show()
-
                 threading.Thread(target=self.receive_moves, daemon=True).start()
-            except Exception as e:
-                print(f"Failed to connect: {e}")
+        except Exception as e:
+            print(f"Error connecting to server: {e}")
 
     def receive_moves(self):
         while True:
@@ -109,7 +107,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         self.ui.go_to_third_page()
                         self.client_sock.sendall("GET_CLIENT_LIST".encode('utf-8'))
                     elif message.startswith("REGISTER_FAIL"):
-                        self.message_handler.show_warning_signal.emit("Ошибка", "Такой пользователь уже существует!")
+                        self.message_handler.show_warning_signal.emit("Ошибка", message.split(':')[1])
                     elif message.startswith("LOGIN_SUCCESS"):
                         self.user_name = message.split(":", 1)[1]
                         self.ui.go_to_third_page()

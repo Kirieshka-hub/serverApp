@@ -87,7 +87,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         while True:
             broadcast_sock.sendto(broadcast_message, ('<broadcast>', 37021))
-            print(f'Рассылка IP-сервера: {server_ip}')
+            print(f'Broadcasting server IP: {server_ip}')
             threading.Event().wait(2)
 
     def handle_client(self, client_sock, addr):
@@ -122,6 +122,18 @@ class MainWindow(QtWidgets.QMainWindow):
         if len(parts) >= 3:
             username = parts[1]
             password = parts[2]
+
+            # Проверка требований к паролю
+            if len(password) < 6:
+                client_sock.sendall("REGISTER_FAIL:Password must be at least 6 characters long.".encode('utf-8'))
+                return
+            if not any(char.isdigit() for char in password):
+                client_sock.sendall("REGISTER_FAIL:Password must contain at least one digit.".encode('utf-8'))
+                return
+            if not any(char.isalpha() for char in password):
+                client_sock.sendall("REGISTER_FAIL:Password must contain at least one letter.".encode('utf-8'))
+                return
+
             try:
                 connection = sqlite3.connect('users.db')
                 cursor = connection.cursor()
@@ -133,14 +145,14 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.clients.append(client_sock)
                 self.client_addresses[addr] = client_sock
             except sqlite3.IntegrityError:
-                client_sock.sendall("REGISTER_FAIL:Username already exists".encode('utf-8'))
+                client_sock.sendall("REGISTER_FAIL:Username already exists.".encode('utf-8'))
             except Exception as e:
                 client_sock.sendall(f"REGISTER_FAIL:{e}".encode('utf-8'))
             finally:
                 if connection:
                     connection.close()
         else:
-            client_sock.sendall("REGISTER_FAIL:Invalid format".encode('utf-8'))
+            client_sock.sendall("REGISTER_FAIL:Invalid format.".encode('utf-8'))
 
     def login_user(self, message, client_sock, addr):
         parts = message.split(":")
