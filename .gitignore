@@ -1,3 +1,5 @@
 /.idea/
 /_pycache_/
 /README.md/
+/users.db/
+/.venv/

@@ -2,7 +2,7 @@ import socket
 import threading
 import sqlite3
 from PyQt5 import QtCore, QtWidgets
-import sys
+import sys, time
 # from initUI import Ui_MainWindow
 
 
@@ -22,7 +22,6 @@ def create_database():
         )
         ''')
 
-        # Таблица сообщений
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,11 +54,9 @@ class AwaitingWindow(QtWidgets.QWidget):
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, awaiting_window):
         super().__init__()
-        self.clients = []
+        self.clients = []  # Connected clients
         self.client_addresses = {}
         self.awaiting_window = awaiting_window
-        # self.ui = Ui_MainWindow()
-        # self.ui.setupUi(self)
 
         self.server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_sock.bind(('', 53210))
@@ -68,27 +65,21 @@ class MainWindow(QtWidgets.QMainWindow):
         threading.Thread(target=self.start_server, daemon=True).start()
 
     def start_server(self):
-        print('Сервер запущен, ожидание подключения клиента...')
-        threading.Thread(target=self.broadcast_ip, daemon=True).start()
-
+        print('Server started, waiting for connections...')
         while True:
             client_sock, client_addr = self.server_sock.accept()
-            print(f'Клиент подключен от {client_addr}')
-
+            print(f'Client connected from {client_addr}')
             self.client_addresses[client_addr] = client_sock
             threading.Thread(target=self.handle_client, args=(client_sock, client_addr), daemon=True).start()
 
-    def broadcast_ip(self):
-        broadcast_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        broadcast_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-
-        server_ip = socket.gethostbyname(socket.gethostname())
-        broadcast_message = f'SERVER_IP:{server_ip}'.encode('utf-8')
-
-        while True:
-            broadcast_sock.sendto(broadcast_message, ('<broadcast>', 37021))
-            print(f'Broadcasting server IP: {server_ip}')
-            threading.Event().wait(2)
+    # def broadcast_server_ip(self):
+    #     udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    #     udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    #     server_ip = socket.gethostbyname(socket.gethostname())
+    #     while True:
+    #         message = f'SERVER_IP:{server_ip}'.encode('utf-8')
+    #         udp_sock.sendto(message, ('<broadcast>', 37021))
+    #         time.sleep(2)
 
     def handle_client(self, client_sock, addr):
         try:
@@ -123,7 +114,6 @@ class MainWindow(QtWidgets.QMainWindow):
             username = parts[1]
             password = parts[2]
 
-            # Проверка требований к паролю
             if len(password) < 6:
                 client_sock.sendall("REGISTER_FAIL:Password must be at least 6 characters long.".encode('utf-8'))
                 return
@@ -234,9 +224,9 @@ class MainWindow(QtWidgets.QMainWindow):
                     client_sock.sendall(response.encode('utf-8'))
 
                 else:
-                    client_sock.sendall("ERROR: Пользователь не найден.".encode('utf-8'))
+                    client_sock.sendall("User not found.".encode('utf-8'))
             else:
-                client_sock.sendall("ERROR: Неверный формат запроса.".encode('utf-8'))
+                client_sock.sendall("Invalid request format.".encode('utf-8'))
         except Exception as e:
             print(f"Ошибка при загрузке чата: {e}")
             client_sock.sendall(f"ERROR: {e}".encode('utf-8'))
@@ -272,7 +262,6 @@ class MainWindow(QtWidgets.QMainWindow):
                        OR (sender_username = ? AND receiver_username = ?)
                     ''', (sender_username, chat_partner, chat_partner, sender_username))
 
-                    # Сохранить новые сообщения
                     for line in chat_messages.split("\n"):
                         if line.strip():  # Проверить, что строка не пустая
                             cursor.execute('''
@@ -345,9 +334,6 @@ class MainWindow(QtWidgets.QMainWindow):
 if __name__ == "__main__":
     create_database()
     app = QtWidgets.QApplication(sys.argv)
-
     awaiting_window = AwaitingWindow()
-    awaiting_window.show()
-
     window = MainWindow(awaiting_window)
     sys.exit(app.exec_())
