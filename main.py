@@ -14,13 +14,13 @@ def main():
         create_database()  # Создайте базу данных перед запуском сервера
         app = QtWidgets.QApplication(sys.argv)
         awaiting_window = AwaitingWindow()
-        awaiting_window.show()
+        # awaiting_window.show()
         server_window = MainWindow(awaiting_window)  # Запустите серверное окно
         sys.exit(app.exec_())
     else:
         app = QtWidgets.QApplication(sys.argv)
         awaiting_window = AwaitingWindow()
-        awaiting_window.show()
+        # awaiting_window.show()
         client_window = ClientMainWindow(awaiting_window)  # Запустите клиентское окно
         sys.exit(app.exec_())
 

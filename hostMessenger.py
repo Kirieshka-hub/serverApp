@@ -341,7 +341,7 @@ if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
 
     awaiting_window = AwaitingWindow()
-    awaiting_window.show()
+    # awaiting_window.show()
 
     window = MainWindow(awaiting_window)
     sys.exit(app.exec_())

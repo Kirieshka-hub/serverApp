@@ -80,7 +80,7 @@ class MainWindow(QtWidgets.QMainWindow):
         threading.Thread(target=self.scan_for_server_tcp, daemon=True).start()
 
     def scan_for_server_tcp(self):
-        local_ip = self.get_local_ip()
+        local_ip = socket.gethostbyname(socket.gethostname())
         subnet = ".".join(local_ip.split(".")[:3])
         server_port = 53210
         print(f"Сканирование сети {subnet}.x на порт {server_port}...")
@@ -94,7 +94,7 @@ class MainWindow(QtWidgets.QMainWindow):
             threads.append(thread)
 
         for thread in threads:
-            thread.join()  # Ждем завершения всех потоков
+            thread.join()
 
     def try_connect_to_server(self, target_ip):
         server_port = 53210
@@ -237,7 +237,7 @@ class MainWindow(QtWidgets.QMainWindow):
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
     awaiting_window = AwaitingWindow()
-    awaiting_window.show()
+    # awaiting_window.show()
 
     client_window = MainWindow(awaiting_window)
     # client_window.connect_to_server()
