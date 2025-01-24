@@ -1,10 +1,7 @@
 import socket
 import threading
 import sqlite3
-from PyQt5 import QtCore, QtWidgets
-import sys, time
-# from initUI import Ui_MainWindow
-
+import time
 
 def create_database():
     try:
@@ -30,80 +27,73 @@ def create_database():
             message TEXT,
             FOREIGN KEY(sender_username) REFERENCES users(username),
             FOREIGN KEY(receiver_username) REFERENCES users(username)
-        )   
+        )
         ''')
 
         connection.commit()
     except sqlite3.Error as e:
-        print(f'Ошибка при создании базы данных: {e}')
+        print(f'[Server] Ошибка при создании базы данных: {e}')
     finally:
         if connection:
             connection.close()
 
 
-class AwaitingWindow(QtWidgets.QWidget):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle('Ожидание подключения')
-        self.setWindowFlag(QtCore.Qt.WindowStaysOnTopHint)
-        self.setGeometry(100, 100, 300, 100)
-        self.label = QtWidgets.QLabel("Ожидание подключения клиента...", self)
-        self.label.setGeometry(50, 20, 200, 50)
+class ServerCore:
+    def __init__(self, host='', port=53210):
+        self.host = host
+        self.port = port
 
-
-class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self, awaiting_window):
-        super().__init__()
-        self.clients = []  # Connected clients
+        self.clients = []
         self.client_addresses = {}
-        self.awaiting_window = awaiting_window
+
+        create_database()
 
         self.server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server_sock.bind(('', 53210))
-        self.server_sock.listen(2)
+        self.server_sock.bind((self.host, self.port))
+        self.server_sock.listen(5)
+        print(f'[Server] Сервер запущен на порту {self.port}')
 
-        threading.Thread(target=self.start_server, daemon=True).start()
+        self.accept_thread = threading.Thread(target=self.start_accept, daemon=True)
+        self.accept_thread.start()
 
-    def start_server(self):
-        print('Server started, waiting for connections...')
+    def start_accept(self):
+        print('[Server] Ожидаем подключений...')
         while True:
-            client_sock, client_addr = self.server_sock.accept()
-            print(f'Client connected from {client_addr}')
-            self.client_addresses[client_addr] = client_sock
-            threading.Thread(target=self.handle_client, args=(client_sock, client_addr), daemon=True).start()
-
-    # def broadcast_server_ip(self):
-    #     udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    #     udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    #     server_ip = socket.gethostbyname(socket.gethostname())
-    #     while True:
-    #         message = f'SERVER_IP:{server_ip}'.encode('utf-8')
-    #         udp_sock.sendto(message, ('<broadcast>', 37021))
-    #         time.sleep(2)
+            try:
+                client_sock, client_addr = self.server_sock.accept()
+                print(f'[Server] Подключился клиент: {client_addr}')
+                self.client_addresses[client_addr] = client_sock
+                self.clients.append(client_sock)
+                threading.Thread(target=self.handle_client,
+                                 args=(client_sock, client_addr),
+                                 daemon=True).start()
+            except Exception as e:
+                print('[Server] Ошибка в accept:', e)
+                break
 
     def handle_client(self, client_sock, addr):
         try:
             while True:
-                message = client_sock.recv(1024).decode('utf-8')
-                if message:
-                    if message.startswith("REGISTER:"):
-                        self.register_user(message, client_sock, addr)
-                    elif message.startswith("LOGIN:"):
-                        self.login_user(message, client_sock, addr)
-                    elif message.startswith("GET_CLIENT_LIST"):
-                        self.send_client_list(client_sock)
-                    elif message.startswith("TO:"):
-                        self.send_message_to_client(message, client_sock)
-                    elif message.startswith("LOAD_CHAT:"):
-                        self.load_chat(message, client_sock)
-                    elif message.startswith("SAVE_CHAT:"):
-                        self.save_chat(message, client_sock)
-                    else:
-                        self.broadcast_message(message, client_sock)
-                else:
+                data = client_sock.recv(1024)
+                if not data:
                     break
+                message = data.decode('utf-8')
+                if message.startswith("REGISTER:"):
+                    self.register_user(message, client_sock, addr)
+                elif message.startswith("LOGIN:"):
+                    self.login_user(message, client_sock, addr)
+                elif message.startswith("GET_CLIENT_LIST"):
+                    self.send_client_list()
+                elif message.startswith("TO:"):
+                    self.send_message_to_client(message, client_sock)
+                elif message.startswith("LOAD_CHAT:"):
+                    self.load_chat(message, client_sock)
+                elif message.startswith("SAVE_CHAT:"):
+                    self.save_chat(message, client_sock)
+                else:
+                    self.broadcast_message(message, client_sock)
         except Exception as e:
-            print(f"Ошибка при получении сообщения: {e}")
+            print(f"[Server] Ошибка при обработке клиента {addr}: {e}")
         finally:
             self.remove_client(addr)
             client_sock.close()
@@ -127,13 +117,12 @@ class MainWindow(QtWidgets.QMainWindow):
             try:
                 connection = sqlite3.connect('users.db')
                 cursor = connection.cursor()
-                cursor.execute(
-                    'INSERT INTO users (username, password, ip_address, port, is_active) VALUES (?, ?, ?, ?, ?)',
-                    (username, password, addr[0], addr[1], 1))
+                cursor.execute('''
+                    INSERT INTO users (username, password, ip_address, port, is_active) 
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (username, password, addr[0], addr[1], 1))
                 connection.commit()
-                client_sock.sendall(f"REGISTER_SUCCESS:{username}".encode('utf-8'))  # Отправляем имя клиента
-                self.clients.append(client_sock)
-                self.client_addresses[addr] = client_sock
+                client_sock.sendall(f"REGISTER_SUCCESS:{username}".encode('utf-8'))
             except sqlite3.IntegrityError:
                 client_sock.sendall("REGISTER_FAIL:Username already exists.".encode('utf-8'))
             except Exception as e:
@@ -149,22 +138,25 @@ class MainWindow(QtWidgets.QMainWindow):
         if len(parts) >= 3:
             username = parts[1]
             password = parts[2]
+            connection = None
             try:
                 connection = sqlite3.connect('users.db')
                 cursor = connection.cursor()
-                cursor.execute('SELECT password FROM users WHERE username = ?', (username,))
-                result = cursor.fetchone()
-                if result and result[0] == password:
-                    cursor.execute('UPDATE users SET ip_address = ?, port = ?, is_active = 1 WHERE username = ?',
-                                   (addr[0], addr[1], username))
+                cursor.execute('SELECT password FROM users WHERE username=?', (username,))
+                row = cursor.fetchone()
+                if row and row[0] == password:
+                    # Обновим ip/port
+                    cursor.execute('''
+                        UPDATE users 
+                        SET ip_address=?, port=?, is_active=1 
+                        WHERE username=?
+                    ''', (addr[0], addr[1], username))
                     connection.commit()
-                    client_sock.sendall(f"LOGIN_SUCCESS:{username}".encode('utf-8'))  # Отправляем имя клиента
-                    self.clients.append(client_sock)
-                    self.client_addresses[addr] = client_sock
+                    client_sock.sendall(f"LOGIN_SUCCESS:{username}".encode('utf-8'))
                 else:
                     client_sock.sendall("LOGIN_FAIL:Invalid username or password".encode('utf-8'))
             except Exception as e:
-                print(f"Ошибка при входе пользователя: {e}")
+                print(f'[Server] Ошибка при логине: {e}')
                 client_sock.sendall(f"LOGIN_FAIL:{e}".encode('utf-8'))
             finally:
                 if connection:
@@ -172,135 +164,102 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             client_sock.sendall("LOGIN_FAIL:Invalid format".encode('utf-8'))
 
-    def send_client_list(self, client_sock=None):
+    def send_client_list(self):
+        connection = None
         try:
             connection = sqlite3.connect('users.db')
             cursor = connection.cursor()
-            cursor.execute('SELECT username, ip_address, port FROM users WHERE is_active = 1')
-            clients = cursor.fetchall()
-            client_list = [f"{username}:{ip}:{port}" for username, ip, port in clients]
-            message = "CLIENT_LIST:" + ",".join(client_list)
-
-            for client in self.clients:
-                try:
-                    client.sendall(message.encode('utf-8'))
-                except Exception as e:
-                    print(f"Ошибка при отправке списка клиенту: {e}")
+            cursor.execute('SELECT username, ip_address, port FROM users WHERE is_active=1')
+            rows = cursor.fetchall()
+            client_list = [f"{u}:{ip}:{pt}" for (u, ip, pt) in rows]
+            msg = "CLIENT_LIST:" + ",".join(client_list)
+            self.broadcast_message(msg, None)
         except Exception as e:
-            print(f"Ошибка при получении списка клиентов: {e}")
+            print("[Server] Ошибка в send_client_list:", e)
         finally:
             if connection:
                 connection.close()
 
     def load_chat(self, message, client_sock):
+        parts = message.split(":")
+        if len(parts) != 2:
+            client_sock.sendall("ERROR:Wrong LOAD_CHAT format.".encode('utf-8'))
+            return
+
+        chat_partner = parts[1]
         connection = None
         try:
-            parts = message.split(":")
-            if len(parts) == 2:
-                chat_partner = parts[1]
-                client_address = client_sock.getpeername()
-                ip_address = client_address[0]
-                port = client_address[1]
+            connection = sqlite3.connect('users.db')
+            cursor = connection.cursor()
+            ip, port = client_sock.getpeername()
 
-                connection = sqlite3.connect('users.db')
-                cursor = connection.cursor()
-                cursor.execute('SELECT username FROM users WHERE ip_address = ? AND port = ?', (ip_address,port))
-                sender = cursor.fetchone()
-                if sender:
-                    sender_username = sender[0]
+            cursor.execute('SELECT username FROM users WHERE ip_address=? AND port=?', (ip, port))
+            row = cursor.fetchone()
+            if not row:
+                client_sock.sendall("ERROR:User not found.".encode('utf-8'))
+                return
+            my_username = row[0]
 
-                    cursor.execute('''
-                    SELECT sender_username, message
-                    FROM messages
-                    WHERE (sender_username = ? AND receiver_username = ?)
-                       OR (sender_username = ? AND receiver_username = ?)
-                    ORDER BY id ASC
-                    ''', (sender_username, chat_partner, chat_partner, sender_username))
+            cursor.execute('''
+                SELECT sender_username, message
+                FROM messages
+                WHERE (sender_username=? AND receiver_username=?)
+                   OR (sender_username=? AND receiver_username=?)
+                ORDER BY id ASC
+            ''', (my_username, chat_partner, chat_partner, my_username))
+            all_rows = cursor.fetchall()
 
-                    messages = cursor.fetchall()
-                    response = "CHAT_MESSAGES:" + "\n".join(
-                        [f"{msg[1]}" for msg in messages]
-                    )
-                    client_sock.sendall(response.encode('utf-8'))
+            lines = [r[1] for r in all_rows]  # r[1] = message
+            resp = "CHAT_MESSAGES:" + "\n".join(lines)
+            client_sock.sendall(resp.encode('utf-8'))
 
-                else:
-                    client_sock.sendall("User not found.".encode('utf-8'))
-            else:
-                client_sock.sendall("Invalid request format.".encode('utf-8'))
         except Exception as e:
-            print(f"Ошибка при загрузке чата: {e}")
-            client_sock.sendall(f"ERROR: {e}".encode('utf-8'))
+            client_sock.sendall(f"ERROR:{e}".encode('utf-8'))
         finally:
             if connection:
                 connection.close()
 
     def save_chat(self, message, client_sock):
+        parts = message.split(":", 2)
+        if len(parts) != 3:
+            client_sock.sendall("ERROR:Wrong SAVE_CHAT format.".encode('utf-8'))
+            return
+
+        chat_partner = parts[1]
+        chat_text = parts[2]
+        if not chat_text.strip():
+            return
+
         connection = None
-        try:
-            parts = message.split(":", 2)
-            if len(parts) == 3:
-                chat_partner = parts[1]
-                chat_messages = parts[2]
-                client_address = client_sock.getpeername()
-                ip_address = client_address[0]
-                port = client_address[1]
-
-                if not chat_messages.strip():
-                    return
-
-                connection = sqlite3.connect('users.db')
-                cursor = connection.cursor()
-                cursor.execute('SELECT username FROM users WHERE ip_address = ? AND port = ?', (ip_address, port))
-                sender = cursor.fetchone()
-                if sender:
-                    sender_username = sender[0]
-
-                    # Удалить старые сообщения между пользователями
-                    cursor.execute('''
-                    DELETE FROM messages
-                    WHERE (sender_username = ? AND receiver_username = ?)
-                       OR (sender_username = ? AND receiver_username = ?)
-                    ''', (sender_username, chat_partner, chat_partner, sender_username))
-
-                    for line in chat_messages.split("\n"):
-                        if line.strip():  # Проверить, что строка не пустая
-                            cursor.execute('''
-                            INSERT INTO messages (sender_username, receiver_username, message)
-                            VALUES (?, ?, ?)
-                            ''', (sender_username, chat_partner, line))
-
-                    connection.commit()
-                    print(f"Чат между {sender_username} и {chat_partner} успешно обновлен.")
-                else:
-                    client_sock.sendall("ERROR: Отправитель не найден.".encode('utf-8'))
-            else:
-                client_sock.sendall("ERROR: Неверный формат сохранения чата.".encode('utf-8'))
-        except Exception as e:
-            print(f"Ошибка при сохранении чата: {e}")
-            client_sock.sendall(f"ERROR: {e}".encode('utf-8'))
-        finally:
-            if connection:
-                connection.close()
-
-    def remove_client(self, addr):
         try:
             connection = sqlite3.connect('users.db')
             cursor = connection.cursor()
-            cursor.execute('UPDATE users SET is_active = 0 WHERE ip_address = ? AND port = ?', (addr[0], addr[1]))
+            ip, port = client_sock.getpeername()
+
+            cursor.execute('SELECT username FROM users WHERE ip_address=? AND port=?', (ip, port))
+            row = cursor.fetchone()
+            if not row:
+                client_sock.sendall("ERROR:User not found (SAVE_CHAT).".encode('utf-8'))
+                return
+            my_username = row[0]
+
+            cursor.execute('''
+                DELETE FROM messages
+                WHERE (sender_username=? AND receiver_username=?)
+                   OR (sender_username=? AND receiver_username=?)
+            ''', (my_username, chat_partner, chat_partner, my_username))
+
+            for line in chat_text.split("\n"):
+                line = line.strip()
+                if line:
+                    cursor.execute('''
+                        INSERT INTO messages (sender_username, receiver_username, message)
+                        VALUES (?,?,?)
+                    ''', (my_username, chat_partner, line))
             connection.commit()
 
-            if addr in self.client_addresses:
-                del self.client_addresses[addr]
-
-            for sock in self.clients:
-                if sock.getpeername() == addr:
-                    self.clients.remove(sock)
-                    break
-
-            print(f"Client {addr} отключился")
-            self.send_client_list()
         except Exception as e:
-            print(f"Ошибка при деактивации пользователя: {e}")
+            client_sock.sendall(f"ERROR:{e}".encode('utf-8'))
         finally:
             if connection:
                 connection.close()
@@ -321,19 +280,43 @@ class MainWindow(QtWidgets.QMainWindow):
 
                 if target_sock:
                     target_sock.sendall(
-                        f"Сообщение от {sender_sock.getpeername()} ~ : {msg_content}".encode('utf-8'))
+                        f"Сообщение от {sender_sock.getpeername()} ~ : {msg_content}".encode('utf-8')
+                    )
                 else:
-                    sender_sock.sendall(f"ERROR: Клиент с IP {target_ip} не найден.".encode('utf-8'))
+                    sender_sock.sendall(f"ERROR: Клиент с IP {target_ip}:{target_port} не найден.".encode('utf-8'))
             else:
-                sender_sock.sendall("ERROR: Неверный формат сообщения.".encode('utf-8'))
+                sender_sock.sendall("ERROR: Invalid 'TO:' format.".encode('utf-8'))
         except Exception as e:
-            print(f"Ошибка при отправке сообщения: {e}")
-            sender_sock.sendall(f"ERROR: {e}".encode('utf-8'))
+            print(f"[Server] send_message_to_client error: {e}")
+            sender_sock.sendall(f"ERROR:{e}".encode('utf-8'))
 
+    def broadcast_message(self, message, sender_sock):
+        for sock in self.clients:
+            if sock != sender_sock:
+                try:
+                    sock.sendall(message.encode('utf-8'))
+                except:
+                    pass
 
-if __name__ == "__main__":
-    create_database()
-    app = QtWidgets.QApplication(sys.argv)
-    awaiting_window = AwaitingWindow()
-    window = MainWindow(awaiting_window)
-    sys.exit(app.exec_())
+    def remove_client(self, addr):
+        try:
+            connection = sqlite3.connect('users.db')
+            cursor = connection.cursor()
+            cursor.execute('UPDATE users SET is_active=0 WHERE ip_address=? AND port=?', (addr[0], addr[1]))
+            connection.commit()
+        except Exception as e:
+            print(f"[Server] remove_client error: {e}")
+        finally:
+            if connection:
+                connection.close()
+
+        if addr in self.client_addresses:
+            del self.client_addresses[addr]
+
+        for c in self.clients:
+            if c.getpeername() == addr:
+                self.clients.remove(c)
+                break
+
+        print(f"[Server] Клиент {addr} отключился")
+        self.send_client_list()
