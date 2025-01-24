@@ -2,7 +2,7 @@ import socket
 import threading
 import sqlite3
 from PyQt5 import QtCore, QtWidgets
-import sys
+import sys, time
 # from initUI import Ui_MainWindow
 
 
@@ -55,40 +55,34 @@ class AwaitingWindow(QtWidgets.QWidget):
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, awaiting_window):
         super().__init__()
-        self.clients = []
+        self.clients = []  # Connected clients
         self.client_addresses = {}
         self.awaiting_window = awaiting_window
-        # self.ui = Ui_MainWindow()
-        # self.ui.setupUi(self)
 
+        # Server setup
         self.server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_sock.bind(('', 53210))
         self.server_sock.listen(2)
 
         threading.Thread(target=self.start_server, daemon=True).start()
+        # threading.Thread(target=self.broadcast_server_ip, daemon=True).start()
 
     def start_server(self):
-        print('Сервер запущен, ожидание подключения клиента...')
-        threading.Thread(target=self.broadcast_ip, daemon=True).start()
-
+        print('Server started, waiting for connections...')
         while True:
             client_sock, client_addr = self.server_sock.accept()
-            print(f'Клиент подключен от {client_addr}')
-
+            print(f'Client connected from {client_addr}')
             self.client_addresses[client_addr] = client_sock
             threading.Thread(target=self.handle_client, args=(client_sock, client_addr), daemon=True).start()
 
-    def broadcast_ip(self):
-        broadcast_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        broadcast_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-
-        server_ip = socket.gethostbyname(socket.gethostname())
-        broadcast_message = f'SERVER_IP:{server_ip}'.encode('utf-8')
-
-        while True:
-            broadcast_sock.sendto(broadcast_message, ('<broadcast>', 37021))
-            print(f'Broadcasting server IP: {server_ip}')
-            threading.Event().wait(2)
+    # def broadcast_server_ip(self):
+    #     udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    #     udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    #     server_ip = socket.gethostbyname(socket.gethostname())
+    #     while True:
+    #         message = f'SERVER_IP:{server_ip}'.encode('utf-8')
+    #         udp_sock.sendto(message, ('<broadcast>', 37021))
+    #         time.sleep(2)
 
     def handle_client(self, client_sock, addr):
         try:

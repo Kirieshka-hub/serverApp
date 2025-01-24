@@ -72,30 +72,65 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.ui.listWidget.itemClicked.connect(self.client_selected)
 
-        self.client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.awaiting_window = awaiting_window
+        # self.awaiting_window = awaiting_window
         self.selected_client_ip_port = None
 
-    def connect_to_server(self):
-        udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        udp_sock.bind(('', 37021))
+        self.client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.awaiting_window = awaiting_window
+        threading.Thread(target=self.scan_for_server_tcp, daemon=True).start()
 
-        print('Searching for server...')
+    def scan_for_server_tcp(self):
+        local_ip = self.get_local_ip()
+        subnet = ".".join(local_ip.split(".")[:3])
+        server_port = 53210
+        print(f"Сканирование сети {subnet}.x на порт {server_port}...")
+
+        threads = []
+
+        for i in range(1, 255):  # Перебираем адреса в подсети
+            target_ip = f"{subnet}.{i}"
+            thread = threading.Thread(target=self.try_connect_to_server, args=(target_ip,))
+            thread.start()
+            threads.append(thread)
+
+        for thread in threads:
+            thread.join()  # Ждем завершения всех потоков
+
+    def try_connect_to_server(self, target_ip):
+        server_port = 53210
         try:
-            data, addr = udp_sock.recvfrom(1024)
-            message = data.decode('utf-8')
-            if message.startswith('SERVER_IP:'):
-                server_ip = message.split(':')[1]
-                print(f'Found server IP: {server_ip}')
+            test_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            test_sock.settimeout(0.5)  # Таймаут для подключения
+            test_sock.connect((target_ip, server_port))
+            print(f"Сервер найден по адресу {target_ip}:{server_port}")
+            self.connect_to_server(target_ip)  # Вызываем метод подключения к серверу
+            return True
+        except (socket.timeout, ConnectionRefusedError):
+            return False
+        finally:
+            test_sock.close()
 
-                self.client_sock.connect((server_ip, 53210))
-                print('Connected to server')
-                self.awaiting_window.close()
-                self.show()
-                threading.Thread(target=self.receive_moves, daemon=True).start()
+    def get_local_ip(self):
+        """Получаем локальный IP-адрес текущего устройства."""
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.connect(("8.8.8.8", 80))  # Пытаемся подключиться к Google DNS
+            ip_address = sock.getsockname()[0]
+            sock.close()
+            return ip_address
         except Exception as e:
-            print(f"Error connecting to server: {e}")
+            print(f"Ошибка при определении локального IP: {e}")
+            return "127.0.0.1"
+
+    def connect_to_server(self, server_ip):
+        try:
+            self.client_sock.connect((server_ip, 53210))
+            print(f"Подключено к серверу: {server_ip}")
+            QtCore.QMetaObject.invokeMethod(self.awaiting_window, "close", QtCore.Qt.QueuedConnection)
+            QtCore.QMetaObject.invokeMethod(self, "show", QtCore.Qt.QueuedConnection)
+            threading.Thread(target=self.receive_moves, daemon=True).start()
+        except Exception as e:
+            print(f"Ошибка при подключении к серверу: {e}")
 
     def receive_moves(self):
         while True:
@@ -205,6 +240,6 @@ if __name__ == "__main__":
     awaiting_window.show()
 
     client_window = MainWindow(awaiting_window)
-    client_window.connect_to_server()
+    # client_window.connect_to_server()
 
     sys.exit(app.exec_())

@@ -2,3 +2,7 @@
 <img width="1243" alt="image" src="https://github.com/user-attachments/assets/f9cda920-bab0-43ac-a978-f6c5472db579">
 <img width="1244" alt="image" src="https://github.com/user-attachments/assets/02631c46-4bf6-44b8-9540-48b6db11a519">
 
+cd serverApp, cd dist
+.\main.exe --mode client
+.\main.exe --mode server
+
