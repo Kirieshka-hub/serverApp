@@ -341,7 +341,8 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate("MainWindow", "MainWindow"))
+        MainWindow.setWindowTitle(_translate("MainWindow", "Messenger"))
+        MainWindow.setWindowIcon(QtGui.QIcon("img/chat_bubble_conversation_contact_icon_264230.ico"))
         self.label_3.setText(_translate("MainWindow", "Sign in"))
         self.lineEdit.setPlaceholderText(_translate("MainWindow", "user name"))
         self.lineEdit_2.setPlaceholderText(_translate("MainWindow", "password"))
@@ -391,6 +392,10 @@ class Ui_MainWindow(object):
                             </span>
                         </div>
                         """
+        return styled_message
+    def display_message(self, message):
+        styled_message = self.styled_message(message)
+        self.textEdit.append(styled_message)  # Добавление сообщения в QTextEdit
 
 
 

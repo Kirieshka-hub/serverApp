@@ -19,7 +19,7 @@ class MessageHandler(QObject):
 class EmojiDialog(QtWidgets.QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Выбор смайлика")
+        self.setWindowTitle("Emoji choose")
         self.setGeometry(500, 500, 300, 300)
 
         emojis = [
@@ -95,7 +95,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
                 elif message.startswith("REGISTER_FAIL"):
                     reason = message.split(':', 1)[1]
-                    self.message_handler.show_warning_signal.emit("Ошибка регистрации", reason)
+                    self.message_handler.show_warning_signal.emit("Registration error", reason)
 
                 elif message.startswith("LOGIN_SUCCESS"):
                     self.user_name = message.split(":", 1)[1]
@@ -103,7 +103,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.client_sock.sendall("GET_CLIENT_LIST".encode('utf-8'))
 
                 elif message.startswith("LOGIN_FAIL"):
-                    self.message_handler.show_warning_signal.emit("Ошибка входа", "Такого пользователя нет!")
+                    self.message_handler.show_warning_signal.emit("Enter error", "There's no such a user!")
 
                 elif message.startswith("CLIENT_LIST:"):
                     clients_info = message.split(":", 1)[1]
@@ -161,7 +161,7 @@ class MainWindow(QtWidgets.QMainWindow):
             try:
                 final_message = f"TO:{self.selected_client_ip_port}:{text}"
                 self.client_sock.sendall(final_message.encode('utf-8'))
-                self.ui.textEdit.append(f"Вы (клиенту {self.selected_client_ip_port}): {text}")
+                self.ui.textEdit.append(f"Your: {text}")
                 self.ui.lineEdit_6.clear()
             except Exception as e:
                 print(f"[Client] Ошибка при отправке сообщения: {e}")
@@ -185,7 +185,7 @@ class MainWindow(QtWidgets.QMainWindow):
         password = self.ui.lineEdit_4.text().strip()
         confirm_password = self.ui.lineEdit_5.text().strip()
         if password != confirm_password:
-            QtWidgets.QMessageBox.warning(self, 'Ошибка', 'Пароли не совпадают!')
+            QtWidgets.QMessageBox.warning(self, 'Error', "Passwords doesn't match!")
             return
 
         reg_msg = f"REGISTER:{username}:{password}"

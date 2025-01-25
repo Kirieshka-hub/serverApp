@@ -49,7 +49,6 @@ def main():
 
     if server_ip:
         print(f"[Launcher] Сервер найден по адресу {server_ip}")
-        # Будем только клиентом
         host_for_client = server_ip
         server_core = None
     else:

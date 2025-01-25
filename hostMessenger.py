@@ -266,8 +266,10 @@ class ServerCore:
 
     def send_message_to_client(self, message, sender_sock):
         try:
+            print(message)
             parts = message.split(":")
             if len(parts) >= 4:
+                target_name = parts[1]
                 target_ip = parts[2]
                 target_port = int(parts[-2])
                 msg_content = parts[-1]
@@ -279,11 +281,10 @@ class ServerCore:
                         break
 
                 if target_sock:
+
                     target_sock.sendall(
-                        f"Сообщение от {sender_sock.getpeername()} ~ : {msg_content}".encode('utf-8')
+                        f"{target_name}: {msg_content}".encode('utf-8')
                     )
-                else:
-                    sender_sock.sendall(f"ERROR: Клиент с IP {target_ip}:{target_port} не найден.".encode('utf-8'))
             else:
                 sender_sock.sendall("ERROR: Invalid 'TO:' format.".encode('utf-8'))
         except Exception as e:
