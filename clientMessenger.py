@@ -1,6 +1,8 @@
 import socket
+import sys
+import os
 import threading
-from PyQt5 import QtCore, QtWidgets
+from PyQt5 import QtCore, QtWidgets, QtGui
 from PyQt5.QtCore import pyqtSignal, QObject
 from initUI import Ui_MainWindow
 
@@ -45,11 +47,20 @@ class EmojiDialog(QtWidgets.QDialog):
         self.accept()
 
 
+def resource_path(relative_path):
+    if hasattr(sys, '_MEIPASS'):
+        base_path = sys._MEIPASS
+    else:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
+
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, server_ip='127.0.0.1', server_port=53210):
         super().__init__()
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
+        icon_path = resource_path("img/chat_bubble_conversation_contact_icon_264230.ico")
+        self.setWindowIcon(QtGui.QIcon(icon_path))
 
         self.server_ip = server_ip
         self.server_port = server_port
@@ -140,7 +151,7 @@ class MainWindow(QtWidgets.QMainWindow):
             print(f"[Client] Ошибка при загрузке чата: {e}")
 
     def clear_text_edit(self):
-        self.save_chat()
+        #self.save_chat()
         self.ui.textEdit.clear()
         print("[Client] Текстовое поле очищено")
 
@@ -163,8 +174,11 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.client_sock.sendall(final_message.encode('utf-8'))
                 self.ui.textEdit.append(f"Your: {text}")
                 self.ui.lineEdit_6.clear()
+
+                self.save_chat()
             except Exception as e:
                 print(f"[Client] Ошибка при отправке сообщения: {e}")
+
 
     def open_emoji_dialog(self):
         dialog = EmojiDialog(self)

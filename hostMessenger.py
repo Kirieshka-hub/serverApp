@@ -1,11 +1,26 @@
 import socket
 import threading
 import sqlite3
-import time
+import os
+import sys
+from pathlib import Path
+
+def get_db_path():
+    if sys.platform.startswith('win'):
+        base_dir = os.getenv('APPDATA', os.path.expanduser('~'))
+        db_dir = os.path.join(base_dir, "MyMessengerApp")
+    else:
+        base_dir = os.path.expanduser('~/.local/share')
+        db_dir = os.path.join(base_dir, "MyMessengerApp")
+
+    Path(db_dir).mkdir(parents=True, exist_ok=True)
+
+    return os.path.join(db_dir, "users.db")
 
 def create_database():
+    db_path = get_db_path()
     try:
-        connection = sqlite3.connect('users.db')
+        connection = sqlite3.connect(db_path)
         cursor = connection.cursor()
 
         cursor.execute('''
@@ -36,6 +51,7 @@ def create_database():
     finally:
         if connection:
             connection.close()
+
 
 
 class ServerCore:
