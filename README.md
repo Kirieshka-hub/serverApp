@@ -9,15 +9,7 @@ A brief description of your project, its goals, and features.
 To install the necessary dependencies, run:
   -pip install PyQt5
   
-1. Navigate to the project directory:
--cd serverApp
--cd dist
-
-2. Run the application in client mode:
-   -.\main.exe --mode client
-
-3. Run the application in server mode if needed:
-  -.\main.exe --mode server
+start mеssagе.еxе
    
 ## Usage Examples
 
