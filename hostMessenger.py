@@ -281,10 +281,21 @@ class ServerCore:
                         break
 
                 if target_sock:
+                    sender_ip, sender_port = sender_sock.getpeername()
+                    connection = sqlite3.connect('users.db')
+                    cursor = connection.cursor()
+                    cursor.execute('SELECT username FROM users WHERE ip_address=? AND port=?', (sender_ip, sender_port))
+                    row = cursor.fetchone()
 
-                    target_sock.sendall(
-                        f"{target_name}: {msg_content}".encode('utf-8')
-                    )
+                    if row:
+                        sender_username = row[0]
+
+                        formatted_message = f"{sender_username}: {msg_content}"
+                        target_sock.sendall(formatted_message.encode('utf-8'))
+                    else:
+                        sender_sock.sendall("ERROR: User not found.".encode('utf-8'))
+                else:
+                    sender_sock.sendall("ERROR: Target client not found.".encode('utf-8'))
             else:
                 sender_sock.sendall("ERROR: Invalid 'TO:' format.".encode('utf-8'))
         except Exception as e:
