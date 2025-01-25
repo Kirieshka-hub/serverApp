@@ -1,7 +1,7 @@
 import socket
+import threading
 import sys
 import os
-import threading
 from PyQt5 import QtCore, QtWidgets, QtGui
 from PyQt5.QtCore import pyqtSignal, QObject
 from initUI import Ui_MainWindow
@@ -46,7 +46,6 @@ class EmojiDialog(QtWidgets.QDialog):
         self.selected_emoji = emoji
         self.accept()
 
-
 def resource_path(relative_path):
     if hasattr(sys, '_MEIPASS'):
         base_path = sys._MEIPASS
@@ -68,7 +67,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.message_handler = MessageHandler(parent=self)
 
-        # Привязываем кнопки
         self.ui.pushButton.clicked.connect(self.login)
         self.ui.pushButton_3.clicked.connect(self.register)
         self.ui.pushButton_7.clicked.connect(self.clear_text_edit)
@@ -142,6 +140,7 @@ class MainWindow(QtWidgets.QMainWindow):
             item.setFlags(item.flags() & ~QtCore.Qt.ItemIsSelectable)
         else:
             self.ui.go_to_four_page()
+            self.clear_text_edit()
 
         try:
             chat_partner = self.selected_client_ip_port.split(':')[0]
@@ -151,7 +150,7 @@ class MainWindow(QtWidgets.QMainWindow):
             print(f"[Client] Ошибка при загрузке чата: {e}")
 
     def clear_text_edit(self):
-        #self.save_chat()
+        # self.save_chat()
         self.ui.textEdit.clear()
         print("[Client] Текстовое поле очищено")
 
@@ -172,13 +171,13 @@ class MainWindow(QtWidgets.QMainWindow):
             try:
                 final_message = f"TO:{self.selected_client_ip_port}:{text}"
                 self.client_sock.sendall(final_message.encode('utf-8'))
-                self.ui.textEdit.append(f"Your: {text}")
+                self.ui.textEdit.append(f"{self.user_name}: {text}")
                 self.ui.lineEdit_6.clear()
 
-                self.save_chat()
+                #self.save_chat()
+
             except Exception as e:
                 print(f"[Client] Ошибка при отправке сообщения: {e}")
-
 
     def open_emoji_dialog(self):
         dialog = EmojiDialog(self)
