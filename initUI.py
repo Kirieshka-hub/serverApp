@@ -227,7 +227,7 @@ class Ui_MainWindow(object):
         self.listWidget = QtWidgets.QListWidget(self.widget_6)
         self.listWidget.setGeometry(QtCore.QRect(0, 0, 560, 740))
         self.listWidget.setStyleSheet(
-            "QListWidget { border: 1px solid #512da8;  background-color: rgba(255, 255, 255, 0.5);  } QListWidget::item { height: 40px; margin:20px; /* Высота каждого элемента */ padding: 10px; /* Отступы внутри элемента */ } QListWidget::item:selected { background-color: none; /* Цвет фона выбранного элемента */ color: white; /* Цвет текста выбранного элемента */ } QListWidget QScrollBar { background: lightblue; /* Цвет фона полосы прокрутки */ }\n"
+            "QListWidget { border: 1px solid #512da8;  background-color: rgba(255, 255, 255, 0.5);  font-size: 20px;} QListWidget::item { height: 40px; margin:20px; /* Высота каждого элемента */ padding: 10px; /* Отступы внутри элемента */ } QListWidget::item:selected { background-color: none; /* Цвет фона выбранного элемента */ color: white; /* Цвет текста выбранного элемента */ } QListWidget QScrollBar { background: lightblue; /* Цвет фона полосы прокрутки */ }\n"
             "")
         self.listWidget.setObjectName("listWidget")
         self.verticalLayout_8.addWidget(self.widget_6)
