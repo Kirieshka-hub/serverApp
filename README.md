@@ -1,18 +1,23 @@
-# MESSANGER
+# Messenger
 
 ## Description
 
-A brief description of your project, its goals, and features.
+This is a simple messenger for chating between two users.
+
+## Features
+
+-Local network chat support
+-User-friendly interface
+-Send messages between users
 
 ## Installation
 
 To install the necessary dependencies, run:
   -pip install PyQt5
-  
-start mеssagе.еxе
    
 ## Usage Examples
 
 ![Example 1](https://github.com/user-attachments/assets/cf8f4335-211b-466e-8b66-01911ec608f0)
 ![Example 2](https://github.com/user-attachments/assets/f9cda920-bab0-43ac-a978-f6c5472db579)
-![Example 3](https://github.com/user-attachments/assets/02631c46-4bf6-44b8-9540-48b6db11a519)
+![image](https://github.com/user-attachments/assets/5cee94af-79b5-435f-9be5-89a1c42601b4)
+
