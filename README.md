@@ -6,14 +6,14 @@ This is a simple messenger for chating between two users.
 
 ## Features
 
--Local network chat support
--User-friendly interface
--Send messages between users
+* Local network chat support
+* User-friendly interface
+* Send messages between users
 
 ## Installation
 
 To install the necessary dependencies, run:
-  -pip install PyQt5
+  * pip install PyQt5
    
 ## Usage Examples
 
